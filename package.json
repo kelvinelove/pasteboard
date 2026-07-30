@@ -1,0 +1,217 @@
+{
+	"name": "pasteboard",
+	"displayName": "Pasteboard",
+	"description": "Lightweight persistent notes triggered from the Status Bar with autosave and a typing-first sidebar.",
+	"publisher": "kelvinelove",
+	"author": "kelvinelove",
+	"license": "MIT",
+	"version": "1.1.0",
+	"icon": "media/logo.png",
+	"engines": {
+		"vscode": "^1.74.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"keywords": [
+		"pasteboard",
+		"notes",
+		"notepad",
+		"clipboard",
+		"workspace",
+		"global",
+		"autosave",
+		"status bar"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/kelvinelove/pasteboard"
+	},
+	"activationEvents": [
+		"onStartupFinished",
+		"onView:pasteboard.view",
+		"onWebviewPanel:pasteboard.panel",
+		"onCommand:pasteboard.toggle-sidebar",
+		"onCommand:pasteboard.open",
+		"onCommand:pasteboard.toggle-panel-position",
+		"onCommand:pasteboard.new-item",
+		"onCommand:pasteboard.save-item",
+		"onCommand:pasteboard.delete-item",
+		"onCommand:pasteboard.open-global"
+	],
+	"main": "./out/extension.js",
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./",
+		"lint": "eslint src",
+		"package": "vsce package --no-dependencies"
+	},
+	"devDependencies": {
+		"@types/node": "20.x",
+		"@types/vscode": "^1.74.0",
+		"@typescript-eslint/eslint-plugin": "^8.25.0",
+		"@typescript-eslint/parser": "^8.25.0",
+		"eslint": "^9.21.0",
+		"typescript": "^5.7.3"
+	},
+	"contributes": {
+		"commands": [
+			{
+				"command": "pasteboard.toggle-sidebar",
+				"title": "Toggle Pasteboard Sidebar",
+				"category": "Pasteboard",
+				"icon": "$(clipboard)"
+			},
+			{
+				"command": "pasteboard.open",
+				"title": "Open Pasteboard",
+				"category": "Pasteboard",
+				"icon": "$(notebook)"
+			},
+			{
+				"command": "pasteboard.toggle-panel-position",
+				"title": "Toggle Panel View",
+				"category": "Pasteboard",
+				"icon": "$(layout-panel)"
+			},
+			{
+				"command": "pasteboard.new-item",
+				"title": "New Item",
+				"category": "Pasteboard",
+				"icon": "$(add)"
+			},
+			{
+				"command": "pasteboard.save-item",
+				"title": "Save Item",
+				"category": "Pasteboard",
+				"icon": "$(save)"
+			},
+			{
+				"command": "pasteboard.delete-item",
+				"title": "Delete Item",
+				"category": "Pasteboard",
+				"icon": "$(trash)"
+			},
+			{
+				"command": "pasteboard.open-global",
+				"title": "Open Global Tab",
+				"category": "Pasteboard",
+				"icon": "$(globe)"
+			}
+		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "pasteboard-container",
+					"title": "Pasteboard",
+					"icon": "media/icons/light.svg"
+				}
+			]
+		},
+		"views": {
+			"pasteboard-container": [
+				{
+					"id": "pasteboard.view",
+					"type": "webview",
+					"name": "Pasteboard",
+					"icon": "media/icons/light.svg"
+				}
+			]
+		},
+		"menus": {
+			"view/title": [
+				{
+					"command": "pasteboard.toggle-panel-position",
+					"group": "navigation@1",
+					"when": "view == pasteboard.view"
+				},
+				{
+					"command": "pasteboard.new-item",
+					"group": "navigation@2",
+					"when": "view == pasteboard.view"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "pasteboard.toggle-panel-position",
+					"group": "navigation@1",
+					"when": "activeWebviewPanelId == pasteboard.panel"
+				},
+				{
+					"command": "pasteboard.new-item",
+					"group": "navigation@2",
+					"when": "activeWebviewPanelId == pasteboard.panel"
+				}
+			]
+		},
+		"configuration": {
+			"title": "Pasteboard",
+			"properties": {
+				"pasteboard.autosave": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically save the current note after idle typing."
+				},
+				"pasteboard.autosaveDelay": {
+					"type": "number",
+					"default": 1000,
+					"minimum": 200,
+					"description": "Idle delay in milliseconds before autosave runs."
+				},
+				"pasteboard.confirmDelete": {
+					"type": "boolean",
+					"default": true,
+					"description": "Require confirmation before deleting an item."
+				},
+				"pasteboard.maxItems": {
+					"type": "number",
+					"default": 200,
+					"minimum": 1,
+					"description": "Maximum items kept per tab. Oldest non-pinned items are pruned when exceeded."
+				},
+				"pasteboard.editorBorder": {
+					"type": [
+						"string",
+						"boolean"
+					],
+					"default": "1px",
+					"description": "Border around the editor area. Set to false to disable, or a CSS width like \"2px\"."
+				},
+				"pasteboard.sidebarMode": {
+					"type": "string",
+					"enum": [
+						"view",
+						"beside"
+					],
+					"default": "view",
+					"description": "How the Status Bar toggle opens Pasteboard. \"view\" uses the sidebar WebviewView (drag to Secondary Side Bar for a right panel). \"beside\" opens a WebviewPanel beside the editor."
+				},
+				"pasteboard.openPanelOnStartup": {
+					"type": "boolean",
+					"default": false,
+					"description": "Open the Pasteboard panel view when VS Code starts."
+				}
+			}
+		},
+		"keybindings": [
+			{
+				"command": "pasteboard.toggle-sidebar",
+				"key": "ctrl+alt+p",
+				"mac": "cmd+alt+p"
+			},
+			{
+				"command": "pasteboard.save-item",
+				"key": "ctrl+alt+s",
+				"mac": "cmd+alt+s",
+				"when": "pasteboardFocused"
+			},
+			{
+				"command": "pasteboard.new-item",
+				"key": "ctrl+alt+n",
+				"mac": "cmd+alt+n",
+				"when": "pasteboardFocused"
+			}
+		]
+	}
+}
