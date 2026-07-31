@@ -1,94 +1,57 @@
 # Pasteboard
 
-Lightweight persistent notes for VS Code — triggered from the **Status Bar**, optimized for typing-first note-taking with autosave.
+Pasteboard is a compact, typing-first note surface for VS Code. It opens from a right-aligned Status Bar item, keeps your current draft in focus, and saves automatically while you type.
 
-- **Publisher:** kelvinelove
-- **Extension id:** `kelvinelove.pasteboard`
-- **Author:** kelvinelove
+## What you’ll see
 
-## Features
+- A Status Bar item labeled $(clipboard) Pasteboard in the bottom-right corner.
+- A compact editor with a subtle, theme-aware border.
+- Search and saved-note history at the bottom of the view.
+- Inline SVG toolbar buttons for autosave, new note, save, pin, and close.
+- Hover-reveal delete controls for each saved item.
 
-- **Status Bar trigger** — `$(clipboard) Pasteboard` on the right side of the Status Bar toggles the sidebar.
-- **Typing-first layout** — editor on top; search and saved items at the bottom.
-- **Autosave** — enabled by default; saves after idle delay, on explicit Save, and when the view hides/closes.
-- **GLOBAL + workspace tabs** — global notes and per-folder workspace notes.
-- **Hover delete** — each saved item shows a `✕` on hover (keyboard: focus row + Delete/Backspace).
-- **Editor border** — theme-aware border around the typing area (configurable).
-- **Synced views** — sidebar WebviewView and optional WebviewPanel stay in sync.
+## Placement behavior
 
-## Quick start (development)
+Pasteboard prefers a compact right-side experience, but VS Code does not expose a reliable API to force an exact pixel width or a specific side for every view.
 
-```bash
-npm install
-npm run compile
-```
+The extension uses the following behavior:
 
-Press **F5** to launch the Extension Development Host. Click **$(clipboard) Pasteboard** in the Status Bar (bottom-right).
+1. The primary experience is a sidebar WebviewView, which is narrow and compact by default.
+2. When the view is opened from the Status Bar, it tries to reveal the built-in view container and keep the experience compact.
+3. If the user prefers the fallback panel experience, the extension opens a compact WebviewPanel beside the editor and nudges the layout smaller using the built-in view-size commands.
+4. The last chosen placement is remembered in global state and reused on the next toggle.
 
-## Opening Pasteboard
-
-### Status Bar (primary)
-
-Click **`Pasteboard`** on the right side of the Status Bar (`$(clipboard) Pasteboard`).
-
-Keyboard: **`Ctrl+Alt+P`** / **`Cmd+Alt+P`** toggles the sidebar.
-
-### Right-side sidebar
-
-VS Code does not allow extensions to force a view into the Secondary Side Bar programmatically. To dock Pasteboard on the **right**:
-
-1. Open Pasteboard from the Status Bar (or Activity Bar icon).
-2. **Drag** the Pasteboard view tab to the **Secondary Side Bar** (right side of the window).
-3. VS Code remembers the placement.
-
-### Fallback: beside editor
-
-Set `"pasteboard.sidebarMode": "beside"` in settings. The Status Bar toggle then opens a **WebviewPanel** beside the active editor instead of the sidebar view.
-
-You can also use the **⬒** icon in the Pasteboard toolbar to open/close the panel view while keeping the sidebar open — both stay synced.
-
-## Usage
-
-1. Click the Status Bar item to open Pasteboard.
-2. Type in the editor (top). Title is optional; content autosaves after idle.
-3. Switch **GLOBAL** / workspace tabs in the header.
-4. Search and pick saved items in the **bottom** panel.
-5. Toolbar icons: **autosave toggle**, **new**, **pin**, **save**, **panel toggle**.
-6. Hover a saved item and click **✕** to delete (confirmation respects `pasteboard.confirmDelete`).
+If you prefer Right Sidebar placement, right-click the Pasteboard view title and choose Move View → Right. Pasteboard will remember that placement on future toggles.
 
 ## Commands
 
-| Command | Id |
-|---|---|
-| Pasteboard: Toggle Pasteboard Sidebar | `pasteboard.toggle-sidebar` |
-| Pasteboard: Open Pasteboard | `pasteboard.open` |
-| Pasteboard: Toggle Panel View | `pasteboard.toggle-panel-position` |
-| Pasteboard: New Item | `pasteboard.new-item` |
-| Pasteboard: Save Item | `pasteboard.save-item` |
-| Pasteboard: Delete Item | `pasteboard.delete-item` |
-| Pasteboard: Open Global Tab | `pasteboard.open-global` |
+- Pasteboard: Toggle from Status Bar
+- Pasteboard: Toggle Panel
+- Pasteboard: New Item
+- Pasteboard: Save Item
+- Pasteboard: Delete Item
+- Pasteboard: Open Global Tab
+- Pasteboard: Set Default Placement
 
-## Keybindings (included in `package.json`)
+## Keyboard shortcuts
 
-| Key | Command |
-|---|---|
-| `Ctrl+Alt+P` / `Cmd+Alt+P` | Toggle Pasteboard sidebar |
-| `Ctrl+Alt+N` / `Cmd+Alt+N` | New item (when Pasteboard focused) |
-| `Ctrl+Alt+S` / `Cmd+Alt+S` | Save item (when Pasteboard focused) |
+- Ctrl/Cmd + Alt + P — Toggle Pasteboard
+- Ctrl/Cmd + Alt + N — New item while Pasteboard is focused
+- Ctrl/Cmd + Alt + S — Save item while Pasteboard is focused
+- Delete or Backspace while a list item is focused — Delete that item
 
 ## Settings
 
-| Setting | Default | Description |
-|---|---|---|
-| `pasteboard.autosave` | `true` | Autosave after idle typing |
-| `pasteboard.autosaveDelay` | `1000` | Idle delay (ms) before autosave |
-| `pasteboard.confirmDelete` | `true` | Confirm before deleting items |
-| `pasteboard.maxItems` | `200` | Max items per tab; unpinned pruned oldest-first |
-| `pasteboard.editorBorder` | `"1px"` | Editor border width; `false` to disable |
-| `pasteboard.sidebarMode` | `"view"` | `"view"` (sidebar) or `"beside"` (panel fallback) |
-| `pasteboard.openPanelOnStartup` | `false` | Open panel view on startup |
+- pasteboard.autosave (default: true)
+- pasteboard.autosaveDelay (default: 1000)
+- pasteboard.confirmDelete (default: true)
+- pasteboard.maxItems (default: 200)
+- pasteboard.editorBorder (default: "1px")
+- pasteboard.preferredWidthPercent (default: 28)
+- pasteboard.sidebarMode (default: "view")
+- pasteboard.openPanelOnStartup (default: false)
 
-Example `settings.json`:
+Example:
 
 ```json
 {
@@ -97,50 +60,39 @@ Example `settings.json`:
   "pasteboard.confirmDelete": true,
   "pasteboard.maxItems": 200,
   "pasteboard.editorBorder": "1px",
+  "pasteboard.preferredWidthPercent": 28,
   "pasteboard.sidebarMode": "view"
 }
 ```
 
-## Data model
+## Storage and migrations
 
-Each item: `{ id, title, content, createdAt, updatedAt, pinned }`
+- Global notes are stored in global state under pasteboard.global.
+- Workspace notes are stored per workspace folder in workspace state.
+- Legacy keys such as workspace-notepad and workspace-notepad.notes are migrated on activation.
+- Items are pruned to the configured max item count, preserving pinned items first.
 
-**Storage keys**
-
-- Global: `pasteboard.global` in `globalState`
-- Workspace: `pasteboard.workspace.<folderUri>` in `workspaceState`
-
-Legacy keys (`workspace-notepad`, `workspace-notepad.notes`) are migrated on activation.
-
-## Build & package
+## Build and run
 
 ```bash
 npm install
-npm run compile    # compile TypeScript
-npm run watch      # watch mode
-npm run package    # build .vsix
+npm run compile
 ```
 
-Debug: open this folder in VS Code → **F5** (uses `.vscode/launch.json`).
+Press F5 to start the Extension Development Host. Click the $(clipboard) Pasteboard item in the Status Bar to try it.
+
+To package an extension bundle:
+
+```bash
+npm run package
+```
 
 ## Project layout
 
-```
-src/
-  extension.ts           # Status Bar, commands, activation
-  pasteboardProvider.ts  # WebviewView + WebviewPanel sync
-  storage.ts             # Persistence and pruning
-  types.ts               # Message contracts
-  webview.ts             # Webview UI client
-assets/webview.css       # Typing-first layout styles
-```
-
-## Security
-
-- CSP with script nonce; scripts loaded via `webview.asWebviewUri`.
-- All persistence goes through extension-host message handlers.
-- No telemetry.
-
-## License
-
-MIT
+- src/extension.ts — activation, Status Bar item, commands, and placement handling.
+- src/pasteboardProvider.ts — shared webview view and panel controller.
+- src/pasteboardPanel.ts — compact fallback WebviewPanel wrapper.
+- src/storage.ts — persistence, pruning, and migration helpers.
+- src/types.ts — message contracts between the webview and extension host.
+- src/webview.ts — client-side editor, autosave, and list UI.
+- assets/webview.css — layout styling and toolbar/list behavior.

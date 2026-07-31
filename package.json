@@ -1,11 +1,11 @@
 {
 	"name": "pasteboard",
 	"displayName": "Pasteboard",
-	"description": "Lightweight persistent notes triggered from the Status Bar with autosave and a typing-first sidebar.",
+	"description": "Lightweight persistent notes with a typing-first webview, autosave, and a right-side status bar trigger.",
 	"publisher": "kelvinelove",
 	"author": "kelvinelove",
 	"license": "MIT",
-	"version": "1.1.0",
+	"version": "0.5.0",
 	"icon": "media/logo.png",
 	"engines": {
 		"vscode": "^1.74.0"
@@ -32,12 +32,16 @@
 		"onView:pasteboard.view",
 		"onWebviewPanel:pasteboard.panel",
 		"onCommand:pasteboard.toggle-sidebar",
+		"onCommand:pasteboard.toggleFromStatusBar",
+		"onCommand:pasteboard.togglePanel",
 		"onCommand:pasteboard.open",
 		"onCommand:pasteboard.toggle-panel-position",
 		"onCommand:pasteboard.new-item",
 		"onCommand:pasteboard.save-item",
 		"onCommand:pasteboard.delete-item",
-		"onCommand:pasteboard.open-global"
+		"onCommand:pasteboard.open-global",
+		"onCommand:pasteboard.openGlobalTab",
+		"onCommand:pasteboard.setDefaultPlacement"
 	],
 	"main": "./out/extension.js",
 	"scripts": {
@@ -59,45 +63,65 @@
 		"commands": [
 			{
 				"command": "pasteboard.toggle-sidebar",
-				"title": "Toggle Pasteboard Sidebar",
+				"title": "Pasteboard: Toggle Sidebar",
 				"category": "Pasteboard",
 				"icon": "$(clipboard)"
 			},
 			{
+				"command": "pasteboard.toggleFromStatusBar",
+				"title": "Pasteboard: Toggle from Status Bar",
+				"category": "Pasteboard"
+			},
+			{
+				"command": "pasteboard.togglePanel",
+				"title": "Pasteboard: Toggle Panel",
+				"category": "Pasteboard"
+			},
+			{
 				"command": "pasteboard.open",
-				"title": "Open Pasteboard",
+				"title": "Pasteboard: Open",
 				"category": "Pasteboard",
 				"icon": "$(notebook)"
 			},
 			{
 				"command": "pasteboard.toggle-panel-position",
-				"title": "Toggle Panel View",
+				"title": "Pasteboard: Toggle Panel View",
 				"category": "Pasteboard",
 				"icon": "$(layout-panel)"
 			},
 			{
 				"command": "pasteboard.new-item",
-				"title": "New Item",
+				"title": "Pasteboard: New Item",
 				"category": "Pasteboard",
 				"icon": "$(add)"
 			},
 			{
 				"command": "pasteboard.save-item",
-				"title": "Save Item",
+				"title": "Pasteboard: Save Item",
 				"category": "Pasteboard",
 				"icon": "$(save)"
 			},
 			{
 				"command": "pasteboard.delete-item",
-				"title": "Delete Item",
+				"title": "Pasteboard: Delete Item",
 				"category": "Pasteboard",
 				"icon": "$(trash)"
 			},
 			{
 				"command": "pasteboard.open-global",
-				"title": "Open Global Tab",
+				"title": "Pasteboard: Open Global Tab",
 				"category": "Pasteboard",
 				"icon": "$(globe)"
+			},
+			{
+				"command": "pasteboard.openGlobalTab",
+				"title": "Pasteboard: Open Global Tab",
+				"category": "Pasteboard"
+			},
+			{
+				"command": "pasteboard.setDefaultPlacement",
+				"title": "Pasteboard: Set Default Placement",
+				"category": "Pasteboard"
 			}
 		],
 		"viewsContainers": {
@@ -178,6 +202,13 @@
 					"default": "1px",
 					"description": "Border around the editor area. Set to false to disable, or a CSS width like \"2px\"."
 				},
+				"pasteboard.preferredWidthPercent": {
+					"type": "number",
+					"default": 28,
+					"minimum": 10,
+					"maximum": 50,
+					"description": "Preferred compact width percentage for the panel fallback when the editor is split beside the main editor."
+				},
 				"pasteboard.sidebarMode": {
 					"type": "string",
 					"enum": [
@@ -185,7 +216,7 @@
 						"beside"
 					],
 					"default": "view",
-					"description": "How the Status Bar toggle opens Pasteboard. \"view\" uses the sidebar WebviewView (drag to Secondary Side Bar for a right panel). \"beside\" opens a WebviewPanel beside the editor."
+					"description": "How the Status Bar toggle opens Pasteboard. \"view\" uses the sidebar WebviewView. \"beside\" opens a WebviewPanel beside the editor."
 				},
 				"pasteboard.openPanelOnStartup": {
 					"type": "boolean",
@@ -196,7 +227,7 @@
 		},
 		"keybindings": [
 			{
-				"command": "pasteboard.toggle-sidebar",
+				"command": "pasteboard.toggleFromStatusBar",
 				"key": "ctrl+alt+p",
 				"mac": "cmd+alt+p"
 			},

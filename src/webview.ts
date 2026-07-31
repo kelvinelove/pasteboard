@@ -63,10 +63,11 @@ const contentInput = document.getElementById('content-input') as HTMLTextAreaEle
 const editorFrame = document.getElementById('editor-frame')!;
 const autosaveIndicator = document.getElementById('autosave-indicator')!;
 const btnAutosave = document.getElementById('btn-autosave') as HTMLButtonElement;
-const btnNew = document.getElementById('btn-new')!;
-const btnSave = document.getElementById('btn-save')!;
+const btnNew = document.getElementById('btn-new') as HTMLButtonElement;
+const btnSave = document.getElementById('btn-save') as HTMLButtonElement;
 const btnPin = document.getElementById('btn-pin') as HTMLButtonElement;
-const btnPanel = document.getElementById('btn-panel')!;
+const btnPanel = document.getElementById('btn-panel') as HTMLButtonElement;
+const btnClose = document.getElementById('btn-close') as HTMLButtonElement;
 
 let activeTab = 'global';
 let selectedItemId: string | null = null;
@@ -86,6 +87,10 @@ let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 function post(message: Record<string, unknown>): void {
 	vscode.postMessage(message);
+}
+
+function sanitizeText(value: string): string {
+	return value.replace(/\u0000/g, '').trim();
 }
 
 function applySettings(s: UiSettings): void {
@@ -173,11 +178,26 @@ function renderItemList(): void {
 			(item.pinned ? ' pinned' : '');
 		li.setAttribute('role', 'option');
 		li.setAttribute('aria-selected', String(item.id === selectedItemId));
-		li.tabIndex = 4;
+		li.tabIndex = 0;
+
+		const textWrap = document.createElement('div');
+		textWrap.className = 'item-text';
 
 		const titleSpan = document.createElement('span');
 		titleSpan.className = 'item-title';
-		titleSpan.textContent = (item.pinned ? '📌 ' : '') + item.title;
+		titleSpan.textContent = item.title || 'Untitled';
+		if (item.pinned) {
+			titleSpan.textContent = `📌 ${titleSpan.textContent}`;
+		}
+
+		const metaSpan = document.createElement('span');
+		metaSpan.className = 'item-meta';
+		metaSpan.textContent = new Date(item.updatedAt).toLocaleString([], {
+			month: 'short',
+			day: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit'
+		});
 
 		const deleteBtn = document.createElement('button');
 		deleteBtn.type = 'button';
@@ -190,7 +210,9 @@ function renderItemList(): void {
 			deleteItemById(item.id);
 		});
 
-		li.appendChild(titleSpan);
+		textWrap.appendChild(titleSpan);
+		textWrap.appendChild(metaSpan);
+		li.appendChild(textWrap);
 		li.appendChild(deleteBtn);
 
 		li.addEventListener('click', () => {
@@ -256,8 +278,8 @@ function postDraftChange(): void {
 		type: 'draftChange',
 		tabId: activeTab,
 		itemId: selectedItemId,
-		title: titleInput.value,
-		content: contentInput.value
+		title: sanitizeText(titleInput.value),
+		content: sanitizeText(contentInput.value)
 	});
 	scheduleAutosave();
 }
@@ -287,8 +309,8 @@ function handleNew(): void {
 }
 
 function handleSave(isAutosave = false): void {
-	const title = titleInput.value;
-	const content = contentInput.value;
+	const title = sanitizeText(titleInput.value);
+	const content = sanitizeText(contentInput.value);
 
 	if (!title.trim() && !content.trim()) {
 		return;
@@ -340,6 +362,7 @@ btnNew.addEventListener('click', handleNew);
 btnSave.addEventListener('click', () => handleSave(false));
 btnPin.addEventListener('click', handlePin);
 btnPanel.addEventListener('click', () => post({ type: 'togglePanel' }));
+btnClose.addEventListener('click', () => post({ type: 'togglePanel' }));
 
 titleInput.addEventListener('input', postDraftChange);
 contentInput.addEventListener('input', postDraftChange);

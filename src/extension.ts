@@ -5,9 +5,11 @@ import { PasteboardStorage } from './storage';
 /** Priority for Status Bar placement — higher values sit closer to the right edge. */
 const STATUS_BAR_PRIORITY = 1000;
 
+type Placement = 'sidebar-right' | 'sidebar-left' | 'panel-beside';
+
 /**
- * Extension entrypoint — registers the Status Bar trigger, sidebar webview,
- * optional panel, commands, and storage migration.
+ * Extension entrypoint — registers the Status Bar trigger, view provider,
+ * fallback WebviewPanel, commands, and storage migration.
  */
 export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 	const storage = new PasteboardStorage(ctx);
@@ -15,14 +17,14 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 
 	const provider = new PasteboardProvider(ctx, storage);
 
-	// Status Bar trigger (right-aligned, near notifications area).
+	// Create the right-aligned Status Bar item the user will see in the bottom-right corner.
 	const statusBarItem = vscode.window.createStatusBarItem(
 		vscode.StatusBarAlignment.Right,
 		STATUS_BAR_PRIORITY
 	);
 	statusBarItem.text = '$(clipboard) Pasteboard';
-	statusBarItem.tooltip = 'Toggle Pasteboard sidebar';
-	statusBarItem.command = 'pasteboard.toggle-sidebar';
+	statusBarItem.tooltip = 'Toggle Pasteboard';
+	statusBarItem.command = 'pasteboard.toggleFromStatusBar';
 	statusBarItem.show();
 
 	ctx.subscriptions.push(
@@ -50,12 +52,20 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			}
 		}),
 
+		vscode.commands.registerCommand('pasteboard.toggleFromStatusBar', async () => {
+			await provider.toggleSidebar();
+		}),
+
 		vscode.commands.registerCommand('pasteboard.toggle-sidebar', async () => {
 			await provider.toggleSidebar();
 		}),
 
+		vscode.commands.registerCommand('pasteboard.togglePanel', async () => {
+			provider.togglePanelPosition();
+		}),
+
 		vscode.commands.registerCommand('pasteboard.open', async () => {
-			await provider.focusSidebarView();
+			await provider.openPrimaryView();
 		}),
 
 		vscode.commands.registerCommand('pasteboard.toggle-panel-position', () => {
@@ -63,7 +73,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		}),
 
 		vscode.commands.registerCommand('pasteboard.new-item', async () => {
-			await provider.focusSidebarView();
+			await provider.openPrimaryView();
 			await provider.newItem();
 		}),
 
@@ -76,8 +86,32 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 		}),
 
 		vscode.commands.registerCommand('pasteboard.open-global', async () => {
-			await provider.focusSidebarView();
+			await provider.openPrimaryView();
 			provider.switchToGlobalTab();
+		}),
+
+		vscode.commands.registerCommand('pasteboard.openGlobalTab', async () => {
+			await provider.openPrimaryView();
+			provider.switchToGlobalTab();
+		}),
+
+		vscode.commands.registerCommand('pasteboard.setDefaultPlacement', async () => {
+			interface PlacementQuickPickItem {
+				label: string;
+				description: string;
+				value: Placement;
+			}
+			const choice = await vscode.window.showQuickPick<PlacementQuickPickItem>([
+				{ label: 'Right sidebar', description: 'Prefer the compact sidebar view on the right', value: 'sidebar-right' },
+				{ label: 'Left sidebar', description: 'Use the sidebar view on the left', value: 'sidebar-left' },
+				{ label: 'Beside editor', description: 'Open a compact panel beside the editor', value: 'panel-beside' }
+			], {
+				placeHolder: 'Choose Pasteboard default placement'
+			});
+			if (choice) {
+				await ctx.globalState.update('pasteboard.lastPlacement', choice.value);
+				void vscode.window.showInformationMessage(`Pasteboard will prefer ${choice.value === 'panel-beside' ? 'a beside panel' : 'the sidebar'} on next open.`);
+			}
 		})
 	);
 

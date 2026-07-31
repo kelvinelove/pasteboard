@@ -18,16 +18,14 @@ body {
 	overflow: hidden;
 }
 
-/* ── Header: tabs + icon toolbar ─────────────────────────────────────── */
-
 .header {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.35rem;
 	align-items: center;
-	padding: 0.35rem 0.45rem;
+	padding: 0.4rem 0.45rem;
 	border-bottom: 1px solid var(--vscode-panel-border);
-	background: var(--vscode-editor-background);
+	background: color-mix(in srgb, var(--vscode-editor-background) 92%, var(--vscode-sideBar-background) 8%);
 	flex-shrink: 0;
 }
 
@@ -43,10 +41,10 @@ body {
 	background: var(--vscode-button-secondaryBackground);
 	color: var(--vscode-button-secondaryForeground);
 	border: 1px solid transparent;
-	border-radius: 3px;
-	padding: 0.15rem 0.5rem;
+	border-radius: 999px;
+	padding: 0.18rem 0.55rem;
 	cursor: pointer;
-	font-size: 0.8em;
+	font-size: 0.78em;
 	white-space: nowrap;
 }
 
@@ -61,22 +59,29 @@ body {
 
 .icon-toolbar {
 	display: flex;
-	gap: 0.15rem;
+	gap: 0.18rem;
 	align-items: center;
 	flex-shrink: 0;
 }
 
 .icon-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	background: transparent;
 	color: var(--vscode-foreground);
 	border: 1px solid transparent;
-	border-radius: 3px;
-	padding: 0.15rem 0.35rem;
+	border-radius: 6px;
+	padding: 0.25rem;
 	cursor: pointer;
-	font-size: 0.95em;
-	line-height: 1;
-	min-width: 1.6rem;
-	min-height: 1.6rem;
+	min-width: 1.8rem;
+	min-height: 1.8rem;
+}
+
+.icon-btn svg {
+	width: 1rem;
+	height: 1rem;
+	fill: currentColor;
 }
 
 .icon-btn:hover:not(:disabled) {
@@ -85,7 +90,7 @@ body {
 }
 
 .icon-btn:disabled {
-	opacity: 0.4;
+	opacity: 0.45;
 	cursor: default;
 }
 
@@ -93,8 +98,6 @@ body {
 	color: var(--vscode-charts-green, #89d185);
 	border-color: var(--vscode-charts-green, #89d185);
 }
-
-/* ── Editor (top / main) ─────────────────────────────────────────────── */
 
 .editor-section {
 	flex: 1 1 auto;
@@ -113,19 +116,18 @@ body {
 	min-height: 0;
 	gap: 0.35rem;
 	padding: 0.45rem;
-	border-radius: 4px;
-	background: var(--vscode-editor-background);
-	/* Border width/color set from JS via pasteboard.editorBorder */
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-sideBar-background) 12%);
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
 }
 
 #title-input {
 	width: 100%;
-	padding: 0.3rem 0.4rem;
+	padding: 0.35rem 0.4rem;
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
 	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 3px;
+	border-radius: 4px;
 	font-weight: 600;
 	flex-shrink: 0;
 }
@@ -136,7 +138,7 @@ body {
 	min-height: 100px;
 	resize: none;
 	padding: 0.4rem;
-	background: var(--vscode-editor-background);
+	background: transparent;
 	color: var(--vscode-editor-foreground);
 	border: none;
 	border-radius: 2px;
@@ -167,8 +169,6 @@ body {
 	outline-offset: 1px;
 }
 
-/* ── Bottom panel: search + list ─────────────────────────────────────── */
-
 .bottom-panel {
 	flex: 0 0 auto;
 	display: flex;
@@ -185,7 +185,7 @@ body {
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
 	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 3px;
+	border-radius: 4px;
 	flex-shrink: 0;
 }
 
@@ -202,7 +202,7 @@ body {
 	align-items: center;
 	gap: 0.35rem;
 	padding: 0.3rem 0.35rem;
-	border-radius: 3px;
+	border-radius: 4px;
 	cursor: pointer;
 }
 
@@ -220,12 +220,27 @@ body {
 	font-weight: 600;
 }
 
-.item-title {
+.item-text {
+	display: flex;
+	flex-direction: column;
+	gap: 0.12rem;
 	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.item-title {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-size: 0.85em;
+}
+
+.item-meta {
+	font-size: 0.72em;
+	opacity: 0.7;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .item-delete {
@@ -259,8 +274,6 @@ body {
 	opacity: 0.65;
 	text-align: center;
 }
-
-/* ── Compact height: shrink bottom panel ─────────────────────────────── */
 
 @media (max-height: 420px) {
 	.bottom-panel {
