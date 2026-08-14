@@ -67,7 +67,16 @@ const btnNew = document.getElementById('btn-new') as HTMLButtonElement;
 const btnSave = document.getElementById('btn-save') as HTMLButtonElement;
 const btnPin = document.getElementById('btn-pin') as HTMLButtonElement;
 const btnPanel = document.getElementById('btn-panel') as HTMLButtonElement;
-const btnClose = document.getElementById('btn-close') as HTMLButtonElement;
+
+const ICON_STROKE = 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
+
+const ICONS = {
+	autosaveOn: `<svg width="16" height="16" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L20 7"/><path d="M20 3v4h-4"/><path d="M21 12a9 9 0 0 1-15 6.7L4 17"/><path d="M4 21v-4h4"/></svg>`,
+	autosaveOff: `<svg width="16" height="16" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L20 7"/><path d="M20 3v4h-4"/><path d="M21 12a9 9 0 0 1-15 6.7L4 17"/><path d="M4 21v-4h4"/><line x1="4" y1="4" x2="20" y2="20" opacity="0.6"/></svg>`,
+	pinOn: `<svg width="16" height="16" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M9 4h6"/><path d="M11 4v5.5a2 2 0 0 1-.9 1.67l-2.2 1.47A1.5 1.5 0 0 0 7 14h10a1.5 1.5 0 0 0-.9-1.36l-2.2-1.47A2 2 0 0 1 13 9.5V4" fill="currentColor" fill-opacity="0.35"/><path d="M12 14v6"/></svg>`,
+	pinOff: `<svg width="16" height="16" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M9 4h6"/><path d="M11 4v5.5a2 2 0 0 1-.9 1.67l-2.2 1.47A1.5 1.5 0 0 0 7 14h10a1.5 1.5 0 0 0-.9-1.36l-2.2-1.47A2 2 0 0 1 13 9.5V4"/><path d="M12 14v6"/></svg>`,
+	deleteItem: `<svg width="14" height="14" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>`
+};
 
 let activeTab = 'global';
 let selectedItemId: string | null = null;
@@ -98,6 +107,8 @@ function applySettings(s: UiSettings): void {
 	btnAutosave.classList.toggle('active', s.autosave);
 	btnAutosave.setAttribute('aria-pressed', String(s.autosave));
 	btnAutosave.title = s.autosave ? 'Autosave on (click to disable)' : 'Autosave off (click to enable)';
+	btnAutosave.setAttribute('aria-label', btnAutosave.title);
+	btnAutosave.innerHTML = s.autosave ? ICONS.autosaveOn : ICONS.autosaveOff;
 	applyEditorBorder(s.editorBorder);
 }
 
@@ -202,9 +213,9 @@ function renderItemList(): void {
 		const deleteBtn = document.createElement('button');
 		deleteBtn.type = 'button';
 		deleteBtn.className = 'item-delete';
-		deleteBtn.setAttribute('aria-label', `Delete ${item.title}`);
+		deleteBtn.setAttribute('aria-label', `Delete ${item.title || 'Untitled'}`);
 		deleteBtn.title = 'Delete';
-		deleteBtn.textContent = '✕';
+		deleteBtn.innerHTML = ICONS.deleteItem;
 		deleteBtn.addEventListener('click', e => {
 			e.stopPropagation();
 			deleteItemById(item.id);
@@ -262,12 +273,21 @@ function applyState(
 function updatePinButton(): void {
 	if (!selectedItemId) {
 		btnPin.setAttribute('disabled', 'true');
+		btnPin.setAttribute('aria-pressed', 'false');
 		btnPin.title = 'Pin/unpin';
+		btnPin.setAttribute('aria-label', btnPin.title);
+		btnPin.classList.remove('active');
+		btnPin.innerHTML = ICONS.pinOff;
 		return;
 	}
 	btnPin.removeAttribute('disabled');
 	const item = items.find(i => i.id === selectedItemId);
-	btnPin.title = item?.pinned ? 'Unpin' : 'Pin';
+	const pinned = item?.pinned ?? false;
+	btnPin.title = pinned ? 'Unpin' : 'Pin';
+	btnPin.setAttribute('aria-label', btnPin.title);
+	btnPin.setAttribute('aria-pressed', String(pinned));
+	btnPin.classList.toggle('active', pinned);
+	btnPin.innerHTML = pinned ? ICONS.pinOn : ICONS.pinOff;
 }
 
 function postDraftChange(): void {
@@ -362,7 +382,6 @@ btnNew.addEventListener('click', handleNew);
 btnSave.addEventListener('click', () => handleSave(false));
 btnPin.addEventListener('click', handlePin);
 btnPanel.addEventListener('click', () => post({ type: 'togglePanel' }));
-btnClose.addEventListener('click', () => post({ type: 'togglePanel' }));
 
 titleInput.addEventListener('input', postDraftChange);
 contentInput.addEventListener('input', postDraftChange);

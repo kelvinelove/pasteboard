@@ -69,34 +69,44 @@ body {
 	align-items: center;
 	justify-content: center;
 	background: transparent;
-	color: var(--vscode-foreground);
+	color: var(--vscode-editor-foreground, var(--vscode-foreground));
 	border: 1px solid transparent;
 	border-radius: 6px;
-	padding: 0.25rem;
+	padding: 0.28rem;
 	cursor: pointer;
 	min-width: 1.8rem;
 	min-height: 1.8rem;
+	transition: background-color 0.1s ease, color 0.1s ease, border-color 0.1s ease;
 }
 
 .icon-btn svg {
-	width: 1rem;
-	height: 1rem;
-	fill: currentColor;
+	width: 16px;
+	height: 16px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+	flex-shrink: 0;
 }
 
 .icon-btn:hover:not(:disabled) {
-	background: var(--vscode-toolbar-hoverBackground);
-	border-color: var(--vscode-panel-border);
+	background: var(--vscode-button-hoverBackground, var(--vscode-toolbar-hoverBackground));
+	border-color: var(--vscode-editorWidget-border, var(--vscode-panel-border));
+	color: var(--vscode-editor-foreground, var(--vscode-foreground));
 }
 
 .icon-btn:disabled {
-	opacity: 0.45;
+	opacity: 0.4;
 	cursor: default;
 }
 
 .icon-btn.active {
 	color: var(--vscode-charts-green, #89d185);
 	border-color: var(--vscode-charts-green, #89d185);
+}
+
+.icon-btn:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
 }
 
 .editor-section {
@@ -161,10 +171,8 @@ body {
 
 #title-input:focus,
 #search:focus,
-.icon-btn:focus,
-.tab:focus,
-.item:focus,
-.item-delete:focus {
+.tab:focus-visible,
+.item:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
 }
@@ -244,28 +252,44 @@ body {
 }
 
 .item-delete {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	flex-shrink: 0;
 	background: transparent;
-	color: var(--vscode-foreground);
-	border: none;
-	border-radius: 3px;
-	padding: 0.1rem 0.35rem;
+	color: var(--vscode-editor-foreground, var(--vscode-foreground));
+	border: 1px solid transparent;
+	border-radius: 4px;
+	padding: 0.2rem;
 	cursor: pointer;
-	font-size: 0.85em;
 	opacity: 0;
-	line-height: 1;
+	transition: background-color 0.1s ease, color 0.1s ease, opacity 0.1s ease;
+}
+
+.item-delete svg {
+	width: 14px;
+	height: 14px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
 }
 
 .item:hover .item-delete,
 .item:focus-within .item-delete,
-.item-delete:focus {
+.item-delete:focus-visible {
 	opacity: 0.85;
 }
 
 .item-delete:hover {
 	background: var(--vscode-inputValidation-errorBackground, rgba(255, 80, 80, 0.25));
 	color: var(--vscode-inputValidation-errorForeground, inherit);
+	border-color: var(--vscode-editorWidget-border, var(--vscode-panel-border));
 	opacity: 1;
+}
+
+.item-delete:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
 }
 
 .empty-state {

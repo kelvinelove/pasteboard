@@ -287,20 +287,40 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	<header class="header">
 		<div id="tabs" class="tabs" role="tablist" aria-label="Pasteboard scopes"></div>
 		<nav class="icon-toolbar" aria-label="Pasteboard actions">
-			<button id="btn-autosave" type="button" class="icon-btn" aria-label="Toggle autosave" aria-pressed="true" title="Toggle autosave">
-				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a1 1 0 0 1 1 1v7.17l2.3-2.3a1 1 0 1 1 1.4 1.42L12.7 13.7a1 1 0 0 1-1.4 0l-3.99-4a1 1 0 1 1 1.4-1.42l2.29 2.3V3a1 1 0 0 1 1-1Zm-6 15a1 1 0 0 1 1-1h10a1 1 0 1 1 0 2H7a1 1 0 0 1-1-1Z"/></svg>
+			<button id="btn-autosave" type="button" class="icon-btn" tabindex="0" aria-label="Toggle autosave" aria-pressed="true" title="Toggle autosave">
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M3 12a9 9 0 0 1 15-6.7L20 7" />
+					<path d="M20 3v4h-4" />
+					<path d="M21 12a9 9 0 0 1-15 6.7L4 17" />
+					<path d="M4 21v-4h4" />
+				</svg>
 			</button>
-			<button id="btn-new" type="button" class="icon-btn" aria-label="New note" title="New note">
-				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5a1 1 0 1 1 2 0v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6V5Z"/></svg>
+			<button id="btn-new" type="button" class="icon-btn" tabindex="0" aria-label="New note" title="New note">
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5L13.5 3Z" />
+					<path d="M13 3v5a1 1 0 0 0 1 1h5" />
+					<path d="M12 12v6M9 15h6" />
+				</svg>
 			</button>
-			<button id="btn-pin" type="button" class="icon-btn" aria-label="Pin or unpin" title="Pin or unpin" disabled>
-				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 4.3a1 1 0 0 1 1.4 0l3.6 3.6a1 1 0 0 1 0 1.4L13 14.6l-3.2 1.8 1.8-3.2 6.1-5.9ZM7 13.8 9.2 16l-2.4 1.4a1 1 0 0 0-.2 1.6l.7.7a1 1 0 0 0 1.6-.2L10 18.8l2.2 2.2a1 1 0 0 0 1.4-1.4L8.4 13.8 7 13.8Z"/></svg>
+			<button id="btn-pin" type="button" class="icon-btn" tabindex="0" aria-label="Pin or unpin" aria-pressed="false" title="Pin or unpin" disabled>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M9 4h6" />
+					<path d="M11 4v5.5a2 2 0 0 1-.9 1.67l-2.2 1.47A1.5 1.5 0 0 0 7 14h10a1.5 1.5 0 0 0-.9-1.36l-2.2-1.47A2 2 0 0 1 13 9.5V4" />
+					<path d="M12 14v6" />
+				</svg>
 			</button>
-			<button id="btn-save" type="button" class="icon-btn" aria-label="Save note" title="Save note">
-				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.4A2 2 0 0 0 17.6 6L16 4.4A2 2 0 0 0 14.6 4H6Zm0 2h8.6l1.4 1.4V19H6V5Zm2 3a1 1 0 0 1 1-1h4a1 1 0 0 1 0 2H9a1 1 0 0 1-1-1Zm0 4a1 1 0 0 1 1-1h4a1 1 0 0 1 0 2H9a1 1 0 0 1-1-1Zm0 4a1 1 0 0 1 1-1h2a1 1 0 0 1 0 2H9a1 1 0 0 1-1-1Z"/></svg>
+			<button id="btn-save" type="button" class="icon-btn" tabindex="0" aria-label="Save note" title="Save note">
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M17.5 21H6.5A1.5 1.5 0 0 1 5 19.5v-15A1.5 1.5 0 0 1 6.5 3h9.086a1.5 1.5 0 0 1 1.06.44l2.914 2.914a1.5 1.5 0 0 1 .44 1.06V19.5a1.5 1.5 0 0 1-1.5 1.5Z" />
+					<path d="M8 3v5h7V3" />
+					<path d="M8 21v-7h8v7" />
+				</svg>
 			</button>
-			<button id="btn-close" type="button" class="icon-btn" aria-label="Close Pasteboard" title="Close Pasteboard">
-				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5.2a1 1 0 0 0-1.4 1.4L10.6 12l-5.6 5.4a1 1 0 1 0 1.4 1.4l5.6-5.4 5.4 5.6a1 1 0 0 0 1.4-1.4L13.4 12l5.6-5.4A1 1 0 0 0 17.6 5.2L12 10.8 6.4 5.2Z"/></svg>
+			<button id="btn-panel" type="button" class="icon-btn" tabindex="0" aria-label="Toggle panel view" title="Toggle panel view">
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<rect x="3" y="4" width="18" height="16" rx="2" />
+					<path d="M15 4v16" />
+				</svg>
 			</button>
 		</nav>
 	</header>
