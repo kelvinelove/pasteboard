@@ -27,14 +27,32 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 	statusBarItem.command = 'pasteboard.toggleFromStatusBar';
 	statusBarItem.show();
 
+	// Cross-IDE sync for pasteboard.storageMode = "file": pick up edits made to
+	// .vscode/pasteboard.json by another editor window (or another IDE entirely).
+	const fileWatcher = vscode.workspace.createFileSystemWatcher('**/.vscode/pasteboard.json');
+	const reloadFromDiskIfFileMode = async () => {
+		if (vscode.workspace.getConfiguration('pasteboard').get<string>('storageMode', 'state') === 'file') {
+			await storage.loadFileCache();
+			provider.refreshTabs();
+		}
+	};
+
 	ctx.subscriptions.push(
 		statusBarItem,
+		fileWatcher,
+		fileWatcher.onDidChange(reloadFromDiskIfFileMode),
+		fileWatcher.onDidCreate(reloadFromDiskIfFileMode),
+		fileWatcher.onDidDelete(reloadFromDiskIfFileMode),
 
 		vscode.workspace.onDidChangeWorkspaceFolders(() => {
 			provider.refreshTabs();
 		}),
 
-		vscode.workspace.onDidChangeConfiguration(e => {
+		vscode.workspace.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration('pasteboard.storageMode')) {
+				await storage.loadFileCache();
+				provider.refreshTabs();
+			}
 			if (e.affectsConfiguration('pasteboard')) {
 				provider.broadcastSettings();
 			}

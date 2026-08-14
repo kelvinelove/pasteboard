@@ -383,9 +383,18 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 				case 'updateItem':
 					await this.persistUpdate(msg.tabId, msg.item);
 					break;
-				case 'autosave':
-					await this.persistDraft(msg.tabId, msg.itemId, msg.title, msg.content, true);
+				case 'autosave': {
+					// Only ack when something was actually written — an empty draft is a no-op in persistDraft.
+					const saved = await this.persistDraft(msg.tabId, msg.itemId, msg.title, msg.content, true);
+					if (saved) {
+						this.postToAll({
+							type: 'autosaveAck',
+							itemId: this.uiState.selectedItemId,
+							savedAt: Date.now()
+						});
+					}
 					break;
+				}
 				case 'deleteItem':
 					await this.persistDelete(msg.tabId, msg.itemId);
 					break;
@@ -414,24 +423,26 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
+	/** Returns true when a write actually happened, so callers (e.g. autosave ack) can distinguish a real save from a skipped empty draft. */
 	private async persistDraft(
 		tabId: TabScope,
 		itemId: string | null,
 		title: string,
 		content: string,
 		silent = false
-	): Promise<void> {
+	): Promise<boolean> {
 		if (!title.trim() && !content.trim()) {
-			return;
+			return false;
 		}
 		if (itemId) {
 			const existing = this.storage.getItems(tabId).find(i => i.id === itemId);
 			if (existing) {
 				await this.persistUpdate(tabId, { ...existing, title, content }, silent);
-				return;
+				return true;
 			}
 		}
 		await this.persistCreate(tabId, title, content, silent);
+		return true;
 	}
 
 	private async persistCreate(
@@ -534,7 +545,8 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		return {
 			confirmDelete: config.get<boolean>('confirmDelete', true),
 			autosave: config.get<boolean>('autosave', true),
-			autosaveDelay: config.get<number>('autosaveDelay', 1000),
+			// Clamp so a user-set extreme (e.g. 0ms or 10min) can't flood the host or feel broken.
+			autosaveDelay: Math.min(10000, Math.max(250, config.get<number>('autosaveDelay', 1000))),
 			editorBorder: config.get<string | boolean>('editorBorder', '1px')
 		};
 	}

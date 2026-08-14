@@ -61,4 +61,6 @@ export type HostToWebviewMessage =
 	  }
 	| { type: 'settingsUpdate'; settings: PasteboardUiSettings }
 	| { type: 'command'; command: 'new' | 'save' | 'delete' | 'openGlobal' | 'focusEditor' }
-	| { type: 'error'; message: string };
+	| { type: 'error'; message: string }
+	/** Sent after the host actually persists an autosave, so the webview can confirm real (not optimistic) save state. */
+	| { type: 'autosaveAck'; itemId: string | null; savedAt: number };

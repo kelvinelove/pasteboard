@@ -50,7 +50,8 @@ type HostMessage =
 	  }
 	| { type: 'settingsUpdate'; settings: UiSettings }
 	| { type: 'command'; command: 'new' | 'save' | 'delete' | 'openGlobal' | 'focusEditor' }
-	| { type: 'error'; message: string };
+	| { type: 'error'; message: string }
+	| { type: 'autosaveAck'; itemId: string | null; savedAt: number };
 
 const vscode = acquireVsCodeApi();
 
@@ -138,6 +139,11 @@ function setAutosaveIndicator(state: 'idle' | 'pending' | 'saved'): void {
 		default:
 			autosaveIndicator.textContent = settings.autosave ? 'Autosave on' : '';
 	}
+}
+
+/** Host confirmed the autosave actually persisted; attach the real timestamp as a tooltip over the optimistic "Saved" text. */
+function handleAutosaveAck(savedAt: number): void {
+	autosaveIndicator.title = `Saved at ${new Date(savedAt).toLocaleTimeString()}`;
 }
 
 function filteredItems(): PasteboardItem[] {
@@ -312,9 +318,12 @@ function scheduleAutosave(): void {
 		clearTimeout(autosaveTimer);
 	}
 	setAutosaveIndicator('pending');
+	// Debounce user typing: restart the idle timer on every keystroke, clamped defensively
+	// even though the host already clamps pasteboard.autosaveDelay to the same [250, 10000] range.
+	const delay = Math.min(10000, Math.max(250, settings.autosaveDelay));
 	autosaveTimer = setTimeout(() => {
 		handleSave(true);
-	}, settings.autosaveDelay);
+	}, delay);
 }
 
 function handleNew(): void {
@@ -424,6 +433,9 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 			break;
 		case 'error':
 			console.error('[Pasteboard]', msg.message);
+			break;
+		case 'autosaveAck':
+			handleAutosaveAck(msg.savedAt);
 			break;
 	}
 });

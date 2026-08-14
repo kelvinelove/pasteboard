@@ -180,8 +180,9 @@
 				"pasteboard.autosaveDelay": {
 					"type": "number",
 					"default": 1000,
-					"minimum": 200,
-					"description": "Idle delay in milliseconds before autosave runs."
+					"minimum": 250,
+					"maximum": 10000,
+					"description": "Idle delay in milliseconds before autosave runs. Clamped to 250-10000."
 				},
 				"pasteboard.confirmDelete": {
 					"type": "boolean",
@@ -222,6 +223,19 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Open the Pasteboard panel view when VS Code starts."
+				},
+				"pasteboard.storageMode": {
+					"type": "string",
+					"enum": [
+						"state",
+						"file"
+					],
+					"enumDescriptions": [
+						"Store per-workspace items in VS Code's workspaceState (default).",
+						"Store per-workspace items in a .vscode/pasteboard.json file in each workspace folder, so notes sync across editors/IDEs that open the same folder. The GLOBAL tab always stays in globalState."
+					],
+					"default": "state",
+					"description": "Where per-workspace Pasteboard items are persisted."
 				}
 			}
 		},

@@ -43,13 +43,14 @@ If you prefer Right Sidebar placement, right-click the Pasteboard view title and
 ## Settings
 
 - pasteboard.autosave (default: true)
-- pasteboard.autosaveDelay (default: 1000)
+- pasteboard.autosaveDelay (default: 1000, clamped to 250-10000ms)
 - pasteboard.confirmDelete (default: true)
 - pasteboard.maxItems (default: 200)
 - pasteboard.editorBorder (default: "1px")
 - pasteboard.preferredWidthPercent (default: 28)
 - pasteboard.sidebarMode (default: "view")
 - pasteboard.openPanelOnStartup (default: false)
+- pasteboard.storageMode (default: "state", or "file" for cross-IDE persistence)
 
 Example:
 
@@ -61,14 +62,16 @@ Example:
   "pasteboard.maxItems": 200,
   "pasteboard.editorBorder": "1px",
   "pasteboard.preferredWidthPercent": 28,
-  "pasteboard.sidebarMode": "view"
+  "pasteboard.sidebarMode": "view",
+  "pasteboard.storageMode": "state"
 }
 ```
 
 ## Storage and migrations
 
-- Global notes are stored in global state under pasteboard.global.
-- Workspace notes are stored per workspace folder in workspace state.
+- Global notes are stored in global state under pasteboard.global — this is always cross-workspace, regardless of storageMode.
+- Workspace notes are stored per workspace folder in workspace state by default (pasteboard.storageMode: "state").
+- Set pasteboard.storageMode to "file" to instead persist each workspace folder's notes to a `.vscode/pasteboard.json` file in that folder. This lets the same notes show up when the folder is opened in a different editor window or a different IDE. The extension watches that file and refreshes the view if it changes on disk (e.g. edited by another window). Commit the file if you want the team to share notes, or gitignore it to keep them local.
 - Legacy keys such as workspace-notepad and workspace-notepad.notes are migrated on activation.
 - Items are pruned to the configured max item count, preserving pinned items first.
 
