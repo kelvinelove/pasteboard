@@ -66,7 +66,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 
 		vscode.window.registerWebviewPanelSerializer(PANEL_VIEW_TYPE, {
 			async deserializeWebviewPanel(panel: vscode.WebviewPanel) {
-				provider.deserializePanel(panel);
+				panel.dispose();
 			}
 		}),
 

@@ -33,6 +33,8 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView;
 	private panel?: PasteboardPanel;
 	private readonly webviews = new Set<vscode.Webview>();
+	/** Reentrancy guard for toggleSidebar() — see the comment at its call site. */
+	private isTogglingSidebar = false;
 
 	private readonly uiState: UiState = {
 		activeTab: 'global',
@@ -51,9 +53,21 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		this.view = webviewView;
 		this.attachWebview(webviewView.webview, webviewView.webview.options);
 
+		// The sidebar can become visible via the Activity Bar, the Command Palette, or a
+		// drag — none of which go through toggleSidebar()/openPrimaryView(). Enforce
+		// "never show the sidebar and the Beside panel at once" here too, not just in our
+		// own command handlers, otherwise the panel + sidebar can end up open together.
+		if (this.panel) {
+			this.closePanel();
+		}
+
 		webviewView.onDidChangeVisibility(() => {
 			if (!webviewView.visible) {
 				void this.flushDraft();
+				return;
+			}
+			if (this.panel) {
+				this.closePanel();
 			}
 		});
 
@@ -62,30 +76,70 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 			this.detachWebview(webviewView.webview);
 			this.view = undefined;
 		});
+
+		// VS Code has no memory of a good width for a view container it's never shown
+		// before, so the first-ever reveal (including after "Move View > Right" into the
+		// Secondary Side Bar) can default to a ~50/50 split. Nudge it toward
+		// pasteboard.preferredWidthPercent exactly once, ever — after that VS Code
+		// remembers whatever width the sidebar settles at (ours or the user's own
+		// resize), so this must never re-run and fight a deliberate manual resize.
+		void this.applyCompactSidebarWidthOnce();
 	}
 
 	isViewVisible(): boolean {
 		return this.view?.visible ?? false;
 	}
 
+	private async applyCompactSidebarWidthOnce(): Promise<void> {
+		const alreadySized = this.ctx.globalState.get<boolean>('pasteboard.sidebarWidthInitialized', false);
+		if (alreadySized) {
+			return;
+		}
+		await this.ctx.globalState.update('pasteboard.sidebarWidthInitialized', true);
+
+		const preferredWidthPercent = vscode.workspace
+			.getConfiguration('pasteboard')
+			.get<number>('preferredWidthPercent', 28);
+		const steps = Math.max(1, Math.min(6, Math.round((100 - preferredWidthPercent) / 10)));
+		for (let i = 0; i < steps; i += 1) {
+			await new Promise(resolve => setTimeout(resolve, 60));
+			await vscode.commands.executeCommand('workbench.action.decreaseViewSize');
+		}
+	}
+
 	// ── Toggle logic: sidebar view or compact panel fallback ─────────────
 
 	async toggleSidebar(): Promise<void> {
-		const mode = vscode.workspace
-			.getConfiguration('pasteboard')
-			.get<'view' | 'beside'>('sidebarMode', 'view');
-
-		if (mode === 'beside') {
-			this.togglePanelPosition();
+		// This is the one genuinely async path in this class (openPrimaryView awaits a
+		// reveal command below). Guard it so two rapid Status Bar clicks can't both pass
+		// the visibility check before the first reveal resolves. openPanel()/closePanel()/
+		// togglePanelPosition() are synchronous and run to completion atomically, so they
+		// don't need — and must not get — the same guard: toggleSidebar() calls them
+		// internally, and re-checking a shared flag inside them would make those nested
+		// calls silently no-op.
+		if (this.isTogglingSidebar) {
 			return;
 		}
+		this.isTogglingSidebar = true;
+		try {
+			const mode = vscode.workspace
+				.getConfiguration('pasteboard')
+				.get<'view' | 'beside'>('sidebarMode', 'view');
 
-		if (this.view?.visible || this.panel?.visible) {
-			this.closeAll();
-			return;
+			if (mode === 'beside') {
+				this.togglePanelPosition();
+				return;
+			}
+
+			if (this.view?.visible || this.panel?.visible) {
+				this.closeAll();
+				return;
+			}
+
+			await this.openPrimaryView();
+		} finally {
+			this.isTogglingSidebar = false;
 		}
-
-		await this.openPrimaryView();
 	}
 
 	async openPrimaryView(): Promise<void> {
@@ -93,6 +147,13 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		if (desiredPlacement === 'panel-beside') {
 			this.openPanel();
 			return;
+		}
+
+		// Never reveal the sidebar while a Beside panel is still open — e.g. after the
+		// user picks "Right sidebar" from Set Default Placement without having closed an
+		// already-open panel first.
+		if (this.panel) {
+			this.closePanel();
 		}
 
 		if (this.view?.visible) {
@@ -112,20 +173,29 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 			return;
 		}
 
+		// Mirror of the guard in resolveWebviewView(): never let a Beside panel come up
+		// while the sidebar view is still visible. There's no VS Code API to hide a
+		// single view container, so this collapses the whole Primary Side Bar — the user
+		// can reopen it from the Activity Bar at any time.
+		if (this.view?.visible) {
+			void vscode.commands.executeCommand('workbench.action.closeSidebar');
+		}
+
 		this.panel = new PasteboardPanel(this.ctx, {
 			viewType: PANEL_VIEW_TYPE,
 			title: 'Pasteboard',
-			buildHtml: webview => this.buildHtml(webview),
-			onDidReceiveMessage: msg => {
-				void this.handleMessage(msg as WebviewToHostMessage);
-			},
 			onDidDispose: () => {
 				void this.flushDraft();
+				if (this.panel) {
+					this.detachWebview(this.panel.webview);
+				}
 				this.panel = undefined;
 			},
 			extensionUri: this.ctx.extensionUri
 		});
 
+		// Single place that sets html and wires the message listener — see the comment
+		// in pasteboardPanel.ts for why this must not also happen inside PasteboardPanel.
 		this.attachWebview(this.panel.webview, this.panel.webview.options);
 		void this.updatePlacement('panel-beside');
 	}
@@ -139,31 +209,17 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		return this.panel !== undefined;
 	}
 
-	deserializePanel(panel: vscode.WebviewPanel): void {
-		this.panel = new PasteboardPanel(this.ctx, {
-			viewType: PANEL_VIEW_TYPE,
-			title: panel.title,
-			buildHtml: webview => this.buildHtml(webview),
-			onDidReceiveMessage: msg => {
-				void this.handleMessage(msg as WebviewToHostMessage);
-			},
-			onDidDispose: () => {
-				void this.flushDraft();
-				this.panel = undefined;
-			},
-			extensionUri: this.ctx.extensionUri
-		});
-		this.attachWebview(this.panel.webview, this.panel.webview.options);
-	}
-
 	private closeAll(): void {
 		if (this.panel) {
 			this.panel.dispose();
 			this.panel = undefined;
 		}
-		if (this.view) {
-			this.view = undefined;
+		// Dropping the reference alone doesn't hide the sidebar UI — actually collapse it
+		// so re-clicking the Status Bar item behaves like a real close, not just amnesia.
+		if (this.view?.visible) {
+			void vscode.commands.executeCommand('workbench.action.closeSidebar');
 		}
+		this.view = undefined;
 	}
 
 	// ── Commands ─────────────────────────────────────────────────────────
@@ -334,7 +390,7 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	</main>
 
 	<footer class="bottom-panel">
-		<input id="search" type="search" placeholder="Search saved items…" aria-label="Search items" tabindex="3" />
+		<input id="search" type="search" placeholder="Search saved items…" aria-label="Search items" title="Search saved items" tabindex="3" />
 		<ul id="item-list" class="item-list" role="listbox" aria-label="Saved items"></ul>
 		<p id="empty-state" class="empty-state" hidden>No saved items yet.</p>
 	</footer>

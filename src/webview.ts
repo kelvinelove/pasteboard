@@ -163,6 +163,8 @@ function renderTabs(tabs: WorkspaceTabInfo[]): void {
 		btn.type = 'button';
 		btn.className = 'tab' + (tab.id === activeTab ? ' active' : '');
 		btn.textContent = tab.label;
+		btn.title = `Switch to ${tab.label}`;
+		btn.setAttribute('aria-label', btn.title);
 		btn.setAttribute('role', 'tab');
 		btn.setAttribute('aria-selected', String(tab.id === activeTab));
 		btn.addEventListener('click', () => {

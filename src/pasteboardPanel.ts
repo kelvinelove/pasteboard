@@ -3,8 +3,6 @@ import * as vscode from 'vscode';
 interface PasteboardPanelOptions {
 	viewType: string;
 	title: string;
-	buildHtml: (webview: vscode.Webview) => string;
-	onDidReceiveMessage: (message: unknown) => void;
 	onDidDispose: () => void;
 	extensionUri: vscode.Uri;
 }
@@ -23,6 +21,7 @@ export class PasteboardPanel {
 			vscode.ViewColumn.Beside,
 			{
 				enableScripts: true,
+				retainContextWhenHidden: true,
 				localResourceRoots: [
 					vscode.Uri.joinPath(this.ctx.extensionUri, 'assets'),
 					vscode.Uri.joinPath(this.ctx.extensionUri, 'out')
@@ -35,16 +34,12 @@ export class PasteboardPanel {
 			dark: vscode.Uri.joinPath(this.ctx.extensionUri, 'media', 'icons', 'dark.svg')
 		};
 
-		this.panel.webview.options = {
-			enableScripts: true,
-			localResourceRoots: [
-				vscode.Uri.joinPath(this.ctx.extensionUri, 'assets'),
-				vscode.Uri.joinPath(this.ctx.extensionUri, 'out')
-			]
-		};
-
-		this.panel.webview.html = options.buildHtml(this.panel.webview);
-		this.panel.webview.onDidReceiveMessage(options.onDidReceiveMessage);
+		// Intentionally do NOT set webview.html or webview.onDidReceiveMessage here.
+		// PasteboardProvider.attachWebview() is the single place that does both, for
+		// both this panel and the sidebar WebviewView. A prior version set them here
+		// too, which registered a second message listener on the same webview — every
+		// panel message (including "toggle panel") was handled twice, which closed and
+		// then immediately reopened the panel on a single click.
 		this.panel.onDidDispose(options.onDidDispose);
 		this.panel.onDidChangeViewState(() => {
 			if (this.panel.visible) {
