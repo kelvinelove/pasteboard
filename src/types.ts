@@ -15,6 +15,8 @@ export interface WorkspaceTabInfo {
 	id: TabScope;
 	label: string;
 	uri?: string;
+	/** Number of saved items currently in this tab, for the tab pill's count badge. */
+	count?: number;
 }
 
 /** User-facing settings pushed to the webview on init / config change. */
@@ -34,6 +36,8 @@ export type WebviewToHostMessage =
 	| { type: 'updateItem'; tabId: TabScope; item: PasteboardItem }
 	| { type: 'autosave'; tabId: TabScope; itemId: string | null; title: string; content: string }
 	| { type: 'deleteItem'; tabId: TabScope; itemId: string }
+	| { type: 'undoDelete'; tabId: TabScope; itemId: string }
+	| { type: 'duplicateItem'; tabId: TabScope; itemId: string }
 	| { type: 'togglePin'; tabId: TabScope; itemId: string }
 	| { type: 'draftChange'; tabId: TabScope; itemId: string | null; title: string; content: string }
 	| { type: 'setAutosave'; enabled: boolean }
@@ -54,6 +58,7 @@ export type HostToWebviewMessage =
 	  }
 	| {
 			type: 'stateUpdate';
+			tabs: WorkspaceTabInfo[];
 			activeTab: TabScope;
 			items: PasteboardItem[];
 			selectedItemId: string | null;
@@ -63,4 +68,6 @@ export type HostToWebviewMessage =
 	| { type: 'command'; command: 'new' | 'save' | 'delete' | 'openGlobal' | 'focusEditor' }
 	| { type: 'error'; message: string }
 	/** Sent after the host actually persists an autosave, so the webview can confirm real (not optimistic) save state. */
-	| { type: 'autosaveAck'; itemId: string | null; savedAt: number };
+	| { type: 'autosaveAck'; itemId: string | null; savedAt: number }
+	/** Sent right after a delete persists, so the webview can offer a timed "Undo" toast. */
+	| { type: 'itemDeleted'; tabId: TabScope; item: PasteboardItem };

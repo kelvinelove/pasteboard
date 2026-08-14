@@ -6,11 +6,14 @@ import {
 	PasteboardItem,
 	PasteboardUiSettings,
 	TabScope,
-	WebviewToHostMessage
+	WebviewToHostMessage,
+	WorkspaceTabInfo
 } from './types';
 
 const PANEL_VIEW_TYPE = 'pasteboard.panel';
 const VIEW_CONTAINER_ID = 'pasteboard-container';
+/** How long an "Undo" toast stays valid after a delete, in milliseconds. */
+const UNDO_WINDOW_MS = 6000;
 
 type Placement = 'sidebar-right' | 'sidebar-left' | 'panel-beside';
 
@@ -35,6 +38,9 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	private readonly webviews = new Set<vscode.Webview>();
 	/** Reentrancy guard for toggleSidebar() — see the comment at its call site. */
 	private isTogglingSidebar = false;
+	/** The most recently deleted item, kept around briefly so "Undo" can restore it. */
+	private lastDeleted?: { tabId: TabScope; item: PasteboardItem };
+	private undoTimer?: ReturnType<typeof setTimeout>;
 
 	private readonly uiState: UiState = {
 		activeTab: 'global',
@@ -262,6 +268,111 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		await this.persistDelete(this.uiState.activeTab, this.uiState.selectedItemId);
 	}
 
+	/** Captures the active editor's selection as a new item, titled with its file:line, without disrupting editor focus. */
+	async captureSelection(): Promise<void> {
+		const editor = vscode.window.activeTextEditor;
+		if (!editor || editor.selection.isEmpty) {
+			void vscode.window.showWarningMessage('Pasteboard: Select some text first.');
+			return;
+		}
+
+		const content = editor.document.getText(editor.selection);
+		const tabId = this.scopeForDocument(editor.document);
+		const relativePath = vscode.workspace.asRelativePath(editor.document.uri, false);
+		const startLine = editor.selection.start.line + 1;
+		const endLine = editor.selection.end.line + 1;
+		const title = startLine === endLine ? `${relativePath}:${startLine}` : `${relativePath}:${startLine}-${endLine}`;
+
+		await this.persistCreate(tabId, title, content);
+
+		const choice = await vscode.window.showInformationMessage(`Pasteboard: Added "${title}"`, 'Show');
+		if (choice === 'Show') {
+			await this.openPrimaryView();
+		}
+	}
+
+	/** Populates a fresh draft from the clipboard so the user can review/edit before it's saved. */
+	async newItemFromClipboard(): Promise<void> {
+		const text = await vscode.env.clipboard.readText();
+		if (!text.trim()) {
+			void vscode.window.showWarningMessage('Pasteboard: Clipboard is empty.');
+			return;
+		}
+		this.uiState.selectedItemId = null;
+		this.setDraft(this.uiState.activeTab, { title: '', content: text });
+		this.broadcastState();
+		this.postCommandToWebviews('focusEditor');
+	}
+
+	/** Quick Pick across every tab (including GLOBAL) — scales better than the sidebar list once there are many items. */
+	async quickOpenItem(): Promise<void> {
+		interface ItemQuickPickItem extends vscode.QuickPickItem {
+			tabId: TabScope;
+			itemId: string;
+		}
+
+		const entries: ItemQuickPickItem[] = [];
+		for (const tab of this.storage.getWorkspaceTabs()) {
+			for (const item of this.storage.getItems(tab.id)) {
+				entries.push({
+					label: `${item.pinned ? '$(pin) ' : ''}${item.title || 'Untitled'}`,
+					description: tab.label,
+					detail: item.content.replace(/\s+/g, ' ').slice(0, 120),
+					tabId: tab.id,
+					itemId: item.id
+				});
+			}
+		}
+
+		if (entries.length === 0) {
+			void vscode.window.showInformationMessage('Pasteboard: No saved items yet.');
+			return;
+		}
+
+		const picked = await vscode.window.showQuickPick(entries, {
+			placeHolder: 'Search all Pasteboard items…',
+			matchOnDescription: true,
+			matchOnDetail: true
+		});
+		if (!picked) {
+			return;
+		}
+
+		await this.openPrimaryView();
+		await this.selectItem(picked.tabId, picked.itemId);
+	}
+
+	/** Dumps every item in the currently active tab into a throwaway Markdown document the user can Save As wherever they like. */
+	async exportActiveTabToMarkdown(): Promise<void> {
+		const tabId = this.uiState.activeTab;
+		const items = this.storage.getItems(tabId);
+		if (items.length === 0) {
+			void vscode.window.showInformationMessage('Pasteboard: Nothing to export in this tab.');
+			return;
+		}
+
+		const label = this.storage.getWorkspaceTabs().find(t => t.id === tabId)?.label ?? String(tabId);
+		const sorted = [...items].sort((a, b) => b.updatedAt - a.updatedAt);
+		const sections = sorted.map(item => {
+			const heading = `## ${item.pinned ? '📌 ' : ''}${item.title || 'Untitled'}`;
+			const meta = `_Updated ${new Date(item.updatedAt).toLocaleString()}_`;
+			return `${heading}\n\n${meta}\n\n${item.content}\n`;
+		});
+		const markdown = `# Pasteboard — ${label}\n\n${sections.join('\n---\n\n')}`;
+
+		const doc = await vscode.workspace.openTextDocument({ content: markdown, language: 'markdown' });
+		await vscode.window.showTextDocument(doc, { preview: false });
+	}
+
+	/** Maps a document to the same TabScope id getWorkspaceTabs() would assign its containing folder. */
+	private scopeForDocument(document: vscode.TextDocument): TabScope {
+		const folder = vscode.workspace.getWorkspaceFolder(document.uri);
+		if (folder) {
+			return folder.uri.toString();
+		}
+		return (vscode.workspace.workspaceFolders?.length ?? 0) > 0 ? 'global' : 'local';
+	}
+
 	/** Persist the current draft when the view hides or closes. */
 	async flushDraft(): Promise<void> {
 		const autosave = vscode.workspace.getConfiguration('pasteboard').get<boolean>('autosave', true);
@@ -365,6 +476,12 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 					<path d="M12 14v6" />
 				</svg>
 			</button>
+			<button id="btn-duplicate" type="button" class="icon-btn" tabindex="0" aria-label="Duplicate note" data-tooltip="Duplicate note" disabled>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<rect x="9" y="9" width="11" height="11" rx="2" />
+					<path d="M5 15V5a2 2 0 0 1 2-2h10" />
+				</svg>
+			</button>
 			<button id="btn-save" type="button" class="icon-btn" tabindex="0" aria-label="Save note" data-tooltip="Save note">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<path d="M17.5 21H6.5A1.5 1.5 0 0 1 5 19.5v-15A1.5 1.5 0 0 1 6.5 3h9.086a1.5 1.5 0 0 1 1.06.44l2.914 2.914a1.5 1.5 0 0 1 .44 1.06V19.5a1.5 1.5 0 0 1-1.5 1.5Z" />
@@ -395,6 +512,11 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		<p id="empty-state" class="empty-state" hidden>No saved items yet.</p>
 	</footer>
 
+	<div id="undo-toast" class="undo-toast" role="status" hidden>
+		<span id="undo-toast-text"></span>
+		<button id="undo-toast-btn" type="button" class="undo-toast-btn">Undo</button>
+	</div>
+
 	<script nonce="${nonce}" type="module" src="${scriptUri}"></script>
 </body>
 </html>`;
@@ -414,19 +536,7 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 					this.broadcastState();
 					break;
 				case 'selectItem':
-					await this.flushDraft();
-					this.uiState.activeTab = msg.tabId;
-					this.uiState.selectedItemId = msg.itemId;
-					if (msg.itemId) {
-						const item = this.storage.getItems(msg.tabId).find(i => i.id === msg.itemId);
-						if (item) {
-							this.setDraft(msg.tabId, { title: item.title, content: item.content });
-						}
-					} else {
-						this.setDraft(msg.tabId, { title: '', content: '' });
-					}
-					this.broadcastState();
-					this.postCommandToWebviews('focusEditor');
+					await this.selectItem(msg.tabId, msg.itemId);
 					break;
 				case 'draftChange':
 					this.uiState.activeTab = msg.tabId;
@@ -453,6 +563,12 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 				}
 				case 'deleteItem':
 					await this.persistDelete(msg.tabId, msg.itemId);
+					break;
+				case 'undoDelete':
+					await this.undoDelete(msg.tabId, msg.itemId);
+					break;
+				case 'duplicateItem':
+					await this.persistDuplicate(msg.tabId, msg.itemId);
 					break;
 				case 'togglePin':
 					await this.persistTogglePin(msg.tabId, msg.itemId);
@@ -539,13 +655,30 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		this.broadcastState();
 	}
 
+	/** Shared by the webview's selectItem message and the Quick Open command. */
+	private async selectItem(tabId: TabScope, itemId: string | null): Promise<void> {
+		await this.flushDraft();
+		this.uiState.activeTab = tabId;
+		this.uiState.selectedItemId = itemId;
+		if (itemId) {
+			const item = this.storage.getItems(tabId).find(i => i.id === itemId);
+			if (item) {
+				this.setDraft(tabId, { title: item.title, content: item.content });
+			}
+		} else {
+			this.setDraft(tabId, { title: '', content: '' });
+		}
+		this.broadcastState();
+		this.postCommandToWebviews('focusEditor');
+	}
+
 	private async persistDelete(tabId: TabScope, itemId: string): Promise<void> {
 		const confirmDelete = vscode.workspace
 			.getConfiguration('pasteboard')
 			.get<boolean>('confirmDelete', true);
 
+		const item = this.storage.getItems(tabId).find(i => i.id === itemId);
 		if (confirmDelete) {
-			const item = this.storage.getItems(tabId).find(i => i.id === itemId);
 			const answer = await vscode.window.showWarningMessage(
 				`Delete "${item?.title ?? 'this item'}" from Pasteboard?`,
 				{ modal: true },
@@ -554,6 +687,9 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 			if (answer !== 'Delete') {
 				return;
 			}
+		}
+		if (!item) {
+			return;
 		}
 
 		const items = this.storage.getItems(tabId).filter(i => i.id !== itemId);
@@ -564,6 +700,56 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 			this.setDraft(tabId, { title: '', content: '' });
 		}
 		this.broadcastState();
+		this.offerUndo(tabId, item);
+	}
+
+	/** Offers a timed "Undo" for the just-deleted item: a toast in any open webview, or a native prompt if none is open. */
+	private offerUndo(tabId: TabScope, item: PasteboardItem): void {
+		if (this.undoTimer) {
+			clearTimeout(this.undoTimer);
+		}
+		this.lastDeleted = { tabId, item };
+		this.undoTimer = setTimeout(() => {
+			this.lastDeleted = undefined;
+		}, UNDO_WINDOW_MS);
+
+		if (this.webviews.size > 0) {
+			this.postToAll({ type: 'itemDeleted', tabId, item });
+			return;
+		}
+		void vscode.window.showInformationMessage(`Pasteboard: Deleted "${item.title}"`, 'Undo').then(choice => {
+			if (choice === 'Undo') {
+				void this.undoDelete(tabId, item.id);
+			}
+		});
+	}
+
+	private async undoDelete(tabId: TabScope, itemId: string): Promise<void> {
+		if (!this.lastDeleted || this.lastDeleted.tabId !== tabId || this.lastDeleted.item.id !== itemId) {
+			return; // the undo window expired, or this doesn't match the last delete
+		}
+		if (this.undoTimer) {
+			clearTimeout(this.undoTimer);
+		}
+		const restored = this.lastDeleted.item;
+		this.lastDeleted = undefined;
+
+		const items = [...this.storage.getItems(tabId), restored];
+		await this.storage.setItems(tabId, items);
+		this.uiState.activeTab = tabId;
+		this.uiState.selectedItemId = restored.id;
+		this.setDraft(tabId, { title: restored.title, content: restored.content });
+		this.broadcastState();
+	}
+
+	private async persistDuplicate(tabId: TabScope, itemId: string): Promise<void> {
+		const existing = this.storage.getItems(tabId).find(i => i.id === itemId);
+		if (!existing) {
+			return;
+		}
+		// Duplicates start unpinned even if the original was pinned, so copies don't
+		// silently double up pinned clutter at the top of the list.
+		await this.persistCreate(tabId, `${existing.title} (copy)`, existing.content);
 	}
 
 	private async persistTogglePin(tabId: TabScope, itemId: string): Promise<void> {
@@ -607,8 +793,16 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		};
 	}
 
+	/** getWorkspaceTabs() enriched with each tab's live item count, for the tab pill badges. */
+	private getTabsWithCounts(): WorkspaceTabInfo[] {
+		return this.storage.getWorkspaceTabs().map(tab => ({
+			...tab,
+			count: this.storage.getItems(tab.id).length
+		}));
+	}
+
 	private sendInit(): void {
-		const tabs = this.storage.getWorkspaceTabs();
+		const tabs = this.getTabsWithCounts();
 		if (this.uiState.activeTab !== 'global' && !tabs.some(t => t.id === this.uiState.activeTab)) {
 			this.uiState.activeTab = tabs[0]?.id ?? 'global';
 		}
@@ -628,6 +822,7 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	private broadcastState(): void {
 		const message: HostToWebviewMessage = {
 			type: 'stateUpdate',
+			tabs: this.getTabsWithCounts(),
 			activeTab: this.uiState.activeTab,
 			items: this.storage.getItems(this.uiState.activeTab),
 			selectedItemId: this.uiState.selectedItemId,

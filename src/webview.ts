@@ -22,6 +22,7 @@ interface WorkspaceTabInfo {
 	id: string;
 	label: string;
 	uri?: string;
+	count?: number;
 }
 
 interface UiSettings {
@@ -43,6 +44,7 @@ type HostMessage =
 	  }
 	| {
 			type: 'stateUpdate';
+			tabs: WorkspaceTabInfo[];
 			activeTab: string;
 			items: PasteboardItem[];
 			selectedItemId: string | null;
@@ -51,7 +53,8 @@ type HostMessage =
 	| { type: 'settingsUpdate'; settings: UiSettings }
 	| { type: 'command'; command: 'new' | 'save' | 'delete' | 'openGlobal' | 'focusEditor' }
 	| { type: 'error'; message: string }
-	| { type: 'autosaveAck'; itemId: string | null; savedAt: number };
+	| { type: 'autosaveAck'; itemId: string | null; savedAt: number }
+	| { type: 'itemDeleted'; tabId: string; item: PasteboardItem };
 
 const vscode = acquireVsCodeApi();
 
@@ -67,7 +70,11 @@ const btnAutosave = document.getElementById('btn-autosave') as HTMLButtonElement
 const btnNew = document.getElementById('btn-new') as HTMLButtonElement;
 const btnSave = document.getElementById('btn-save') as HTMLButtonElement;
 const btnPin = document.getElementById('btn-pin') as HTMLButtonElement;
+const btnDuplicate = document.getElementById('btn-duplicate') as HTMLButtonElement;
 const btnPanel = document.getElementById('btn-panel') as HTMLButtonElement;
+const undoToastEl = document.getElementById('undo-toast') as HTMLElement;
+const undoToastTextEl = document.getElementById('undo-toast-text')!;
+const undoToastBtn = document.getElementById('undo-toast-btn') as HTMLButtonElement;
 
 const ICON_STROKE = 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
 
@@ -151,7 +158,6 @@ itemListEl.addEventListener('scroll', hideTooltip);
 let activeTab = 'global';
 let selectedItemId: string | null = null;
 let items: PasteboardItem[] = [];
-let cachedTabs: WorkspaceTabInfo[] = [];
 let searchQuery = '';
 let suppressDraftPost = false;
 
@@ -232,7 +238,17 @@ function renderTabs(tabs: WorkspaceTabInfo[]): void {
 		const btn = document.createElement('button');
 		btn.type = 'button';
 		btn.className = 'tab' + (tab.id === activeTab ? ' active' : '');
-		btn.textContent = tab.label;
+
+		const labelSpan = document.createElement('span');
+		labelSpan.textContent = tab.label;
+		btn.appendChild(labelSpan);
+		if (tab.count) {
+			const countSpan = document.createElement('span');
+			countSpan.className = 'tab-count';
+			countSpan.textContent = String(tab.count);
+			btn.appendChild(countSpan);
+		}
+
 		const tabTooltip = `Switch to ${tab.label}`;
 		btn.setAttribute('data-tooltip', tabTooltip);
 		btn.setAttribute('aria-label', tabTooltip);
@@ -342,11 +358,10 @@ function applyState(
 	selectedItemId = msg.selectedItemId;
 	items = msg.items;
 	applyDraft(msg.draft, focusEditor);
-	if (cachedTabs.length > 0) {
-		renderTabs(cachedTabs);
-	}
+	renderTabs(msg.tabs);
 	renderItemList();
 	updatePinButton();
+	updateDuplicateButton();
 }
 
 function updatePinButton(): void {
@@ -368,6 +383,10 @@ function updatePinButton(): void {
 	btnPin.setAttribute('aria-pressed', String(pinned));
 	btnPin.classList.toggle('active', pinned);
 	btnPin.innerHTML = pinned ? ICONS.pinOn : ICONS.pinOff;
+}
+
+function updateDuplicateButton(): void {
+	btnDuplicate.disabled = !selectedItemId;
 }
 
 function postDraftChange(): void {
@@ -455,6 +474,45 @@ function handlePin(): void {
 	post({ type: 'togglePin', tabId: activeTab, itemId: selectedItemId });
 }
 
+function handleDuplicate(): void {
+	if (!selectedItemId) {
+		return;
+	}
+	post({ type: 'duplicateItem', tabId: activeTab, itemId: selectedItemId });
+}
+
+// ── Undo-delete toast ──────────────────────────────────────────────────
+
+let pendingUndo: { tabId: string; itemId: string } | null = null;
+let undoHideTimer: ReturnType<typeof setTimeout> | null = null;
+
+function hideUndoToast(): void {
+	undoToastEl.hidden = true;
+	pendingUndo = null;
+	if (undoHideTimer) {
+		clearTimeout(undoHideTimer);
+		undoHideTimer = null;
+	}
+}
+
+function showUndoToast(tabId: string, item: PasteboardItem): void {
+	pendingUndo = { tabId, itemId: item.id };
+	undoToastTextEl.textContent = `Deleted "${item.title || 'Untitled'}"`;
+	undoToastEl.hidden = false;
+	if (undoHideTimer) {
+		clearTimeout(undoHideTimer);
+	}
+	undoHideTimer = setTimeout(hideUndoToast, 6000);
+}
+
+undoToastBtn.addEventListener('click', () => {
+	if (!pendingUndo) {
+		return;
+	}
+	post({ type: 'undoDelete', tabId: pendingUndo.tabId, itemId: pendingUndo.itemId });
+	hideUndoToast();
+});
+
 // ── Event listeners ────────────────────────────────────────────────────
 
 btnAutosave.addEventListener('click', () => {
@@ -464,6 +522,7 @@ btnAutosave.addEventListener('click', () => {
 btnNew.addEventListener('click', handleNew);
 btnSave.addEventListener('click', () => handleSave(false));
 btnPin.addEventListener('click', handlePin);
+btnDuplicate.addEventListener('click', handleDuplicate);
 btnPanel.addEventListener('click', () => post({ type: 'togglePanel' }));
 
 titleInput.addEventListener('input', postDraftChange);
@@ -478,9 +537,7 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 	const msg = event.data;
 	switch (msg.type) {
 		case 'init':
-			cachedTabs = msg.tabs;
 			applySettings(msg.settings);
-			renderTabs(msg.tabs);
 			applyState(msg);
 			break;
 		case 'stateUpdate':
@@ -510,6 +567,9 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 			break;
 		case 'autosaveAck':
 			handleAutosaveAck(msg.savedAt);
+			break;
+		case 'itemDeleted':
+			showUndoToast(msg.tabId, msg.item);
 			break;
 	}
 });

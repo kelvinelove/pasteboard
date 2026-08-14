@@ -7,8 +7,9 @@ Pasteboard is a compact, typing-first note surface for VS Code. It opens from a 
 - A Status Bar item labeled $(clipboard) Pasteboard in the bottom-right corner.
 - A compact editor with a subtle, theme-aware border.
 - Search and saved-note history at the bottom of the view.
-- Inline SVG toolbar buttons for autosave, new note, save, pin, and close.
-- Hover-reveal delete controls for each saved item.
+- Inline SVG toolbar buttons for autosave, new note, pin, duplicate, save, and panel toggle.
+- Hover-reveal delete controls for each saved item, with a few-seconds "Undo" toast after deleting.
+- Tab pills show a live item count per workspace/GLOBAL scope.
 
 ## Placement behavior
 
@@ -23,6 +24,14 @@ The extension uses the following behavior:
 
 If you prefer Right Sidebar placement, right-click the Pasteboard view title and choose Move View → Right. Pasteboard will remember that placement on future toggles.
 
+## Quick capture
+
+Beyond typing directly into the editor, there are three fast ways to get things into Pasteboard:
+
+- **Add Selection to Pasteboard** — select text in any editor, then run the command (or right-click → "Add Selection to Pasteboard"). The new item is titled with the file and line range and saved immediately to the tab matching that file's workspace folder, without stealing focus from your editor. A quick notification with a "Show" button confirms the capture.
+- **New Item from Clipboard** — creates a draft pre-filled with your clipboard's current text, ready to review/edit before it's saved.
+- **Quick Open Item** (Ctrl/Cmd + Alt + O) — a searchable Quick Pick across every tab, including GLOBAL. Scales much better than scrolling the in-panel list once you have a lot of saved items.
+
 ## Commands
 
 - Pasteboard: Toggle from Status Bar
@@ -32,13 +41,19 @@ If you prefer Right Sidebar placement, right-click the Pasteboard view title and
 - Pasteboard: Delete Item
 - Pasteboard: Open Global Tab
 - Pasteboard: Set Default Placement
+- Pasteboard: Add Selection to Pasteboard
+- Pasteboard: New Item from Clipboard
+- Pasteboard: Quick Open Item
+- Pasteboard: Export Current Tab to Markdown — opens an unsaved Markdown document with every item in the active tab; use "Save As" to keep it.
 
 ## Keyboard shortcuts
 
 - Ctrl/Cmd + Alt + P — Toggle Pasteboard
 - Ctrl/Cmd + Alt + N — New item while Pasteboard is focused
 - Ctrl/Cmd + Alt + S — Save item while Pasteboard is focused
-- Delete or Backspace while a list item is focused — Delete that item
+- Ctrl/Cmd + Alt + Shift + P — Add the current editor selection to Pasteboard
+- Ctrl/Cmd + Alt + O — Quick Open a saved item from any tab
+- Delete or Backspace while a list item is focused — Delete that item (offers Undo)
 
 ## Settings
 
@@ -73,7 +88,7 @@ Example:
 - Workspace notes are stored per workspace folder in workspace state by default (pasteboard.storageMode: "state").
 - Set pasteboard.storageMode to "file" to instead persist each workspace folder's notes to a `.vscode/pasteboard.json` file in that folder. This lets the same notes show up when the folder is opened in a different editor window or a different IDE. The extension watches that file and refreshes the view if it changes on disk (e.g. edited by another window). Commit the file if you want the team to share notes, or gitignore it to keep them local.
 - Legacy keys such as workspace-notepad and workspace-notepad.notes are migrated on activation.
-- Items are pruned to the configured max item count, preserving pinned items first.
+- Items are pruned to the configured max item count, preserving pinned items first. A notification appears whenever pruning actually removes something, so old notes never disappear silently.
 
 ## Build and run
 

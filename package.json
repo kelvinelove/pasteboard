@@ -41,7 +41,11 @@
 		"onCommand:pasteboard.delete-item",
 		"onCommand:pasteboard.open-global",
 		"onCommand:pasteboard.openGlobalTab",
-		"onCommand:pasteboard.setDefaultPlacement"
+		"onCommand:pasteboard.setDefaultPlacement",
+		"onCommand:pasteboard.addSelectionToPasteboard",
+		"onCommand:pasteboard.newFromClipboard",
+		"onCommand:pasteboard.quickOpen",
+		"onCommand:pasteboard.exportTabToMarkdown"
 	],
 	"main": "./out/extension.js",
 	"scripts": {
@@ -122,6 +126,28 @@
 				"command": "pasteboard.setDefaultPlacement",
 				"title": "Pasteboard: Set Default Placement",
 				"category": "Pasteboard"
+			},
+			{
+				"command": "pasteboard.addSelectionToPasteboard",
+				"title": "Pasteboard: Add Selection to Pasteboard",
+				"category": "Pasteboard",
+				"icon": "$(add)"
+			},
+			{
+				"command": "pasteboard.newFromClipboard",
+				"title": "Pasteboard: New Item from Clipboard",
+				"category": "Pasteboard"
+			},
+			{
+				"command": "pasteboard.quickOpen",
+				"title": "Pasteboard: Quick Open Item",
+				"category": "Pasteboard",
+				"icon": "$(search)"
+			},
+			{
+				"command": "pasteboard.exportTabToMarkdown",
+				"title": "Pasteboard: Export Current Tab to Markdown",
+				"category": "Pasteboard"
 			}
 		],
 		"viewsContainers": {
@@ -166,6 +192,13 @@
 					"command": "pasteboard.new-item",
 					"group": "navigation@2",
 					"when": "activeWebviewPanelId == pasteboard.panel"
+				}
+			],
+			"editor/context": [
+				{
+					"command": "pasteboard.addSelectionToPasteboard",
+					"group": "z_pasteboard",
+					"when": "editorHasSelection"
 				}
 			]
 		},
@@ -256,6 +289,17 @@
 				"key": "ctrl+alt+n",
 				"mac": "cmd+alt+n",
 				"when": "pasteboardFocused"
+			},
+			{
+				"command": "pasteboard.addSelectionToPasteboard",
+				"key": "ctrl+alt+shift+p",
+				"mac": "cmd+alt+shift+p",
+				"when": "editorTextFocus && editorHasSelection"
+			},
+			{
+				"command": "pasteboard.quickOpen",
+				"key": "ctrl+alt+o",
+				"mac": "cmd+alt+o"
 			}
 		]
 	}

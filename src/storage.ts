@@ -75,6 +75,9 @@ export class PasteboardStorage {
 
 	async setItems(scope: TabScope, items: PasteboardItem[]): Promise<void> {
 		const pruned = this.pruneItems(items);
+		if (items.length > pruned.length) {
+			this.notifyPruned(scope, items.length - pruned.length);
+		}
 		if (scope === 'global') {
 			await this.ctx.globalState.update(GLOBAL_KEY, pruned);
 			return;
@@ -130,6 +133,15 @@ export class PasteboardStorage {
 		await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(folder.uri, '.vscode'));
 		const encoded = new TextEncoder().encode(JSON.stringify(items, null, 2));
 		await vscode.workspace.fs.writeFile(this.fileUri(folder), encoded);
+	}
+
+	/** Surface pruning instead of silently deleting old notes with no trace. */
+	private notifyPruned(scope: TabScope, droppedCount: number): void {
+		const maxItems = vscode.workspace.getConfiguration('pasteboard').get<number>('maxItems', 200);
+		const label = this.getWorkspaceTabs().find(t => t.id === scope)?.label ?? scope;
+		void vscode.window.showInformationMessage(
+			`Pasteboard: Removed ${droppedCount} old, unpinned item${droppedCount === 1 ? '' : 's'} from "${label}" to stay within the ${maxItems}-item limit. Pin notes you want to keep.`
+		);
 	}
 
 	/**

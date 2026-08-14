@@ -103,6 +103,23 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 			await provider.deleteItem();
 		}),
 
+		vscode.commands.registerCommand('pasteboard.addSelectionToPasteboard', async () => {
+			await provider.captureSelection();
+		}),
+
+		vscode.commands.registerCommand('pasteboard.newFromClipboard', async () => {
+			await provider.openPrimaryView();
+			await provider.newItemFromClipboard();
+		}),
+
+		vscode.commands.registerCommand('pasteboard.quickOpen', async () => {
+			await provider.quickOpenItem();
+		}),
+
+		vscode.commands.registerCommand('pasteboard.exportTabToMarkdown', async () => {
+			await provider.exportActiveTabToMarkdown();
+		}),
+
 		vscode.commands.registerCommand('pasteboard.open-global', async () => {
 			await provider.openPrimaryView();
 			provider.switchToGlobalTab();
