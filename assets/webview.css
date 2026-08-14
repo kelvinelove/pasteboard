@@ -308,3 +308,28 @@ body {
 		min-height: 60px;
 	}
 }
+
+.hover-tooltip {
+	position: fixed;
+	top: 0;
+	left: 0;
+	z-index: 1000;
+	max-width: 220px;
+	padding: 0.25rem 0.5rem;
+	border-radius: 4px;
+	font-size: 0.75em;
+	line-height: 1.3;
+	background: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+	color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground));
+	border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-panel-border));
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+	pointer-events: none;
+	opacity: 0;
+	visibility: hidden;
+	transition: opacity 0.1s ease;
+}
+
+.hover-tooltip.visible {
+	opacity: 1;
+	visibility: visible;
+}

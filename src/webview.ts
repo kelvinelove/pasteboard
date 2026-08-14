@@ -79,6 +79,75 @@ const ICONS = {
 	deleteItem: `<svg width="14" height="14" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>`
 };
 
+// Native `title` tooltips don't reliably render inside this webview, so tooltips are
+// implemented here instead: any element with a `data-tooltip` attribute gets one via
+// delegated hover/focus listeners, positioned in fixed coordinates (so it isn't clipped
+// by the scrolling item list) and flipped above/below depending on available space.
+const tooltipEl = document.createElement('div');
+tooltipEl.className = 'hover-tooltip';
+tooltipEl.setAttribute('role', 'tooltip');
+document.body.appendChild(tooltipEl);
+
+let tooltipShowTimer: ReturnType<typeof setTimeout> | null = null;
+
+function hideTooltip(): void {
+	if (tooltipShowTimer) {
+		clearTimeout(tooltipShowTimer);
+		tooltipShowTimer = null;
+	}
+	tooltipEl.classList.remove('visible');
+}
+
+function showTooltipFor(target: HTMLElement): void {
+	const text = target.getAttribute('data-tooltip');
+	if (!text) {
+		return;
+	}
+	tooltipEl.textContent = text;
+	tooltipEl.classList.add('visible');
+
+	const anchor = target.getBoundingClientRect();
+	const bubble = tooltipEl.getBoundingClientRect();
+	const fitsBelow = anchor.bottom + bubble.height + 6 <= window.innerHeight;
+	const top = fitsBelow ? anchor.bottom + 6 : anchor.top - bubble.height - 6;
+	const left = Math.min(
+		Math.max(4, anchor.left + anchor.width / 2 - bubble.width / 2),
+		window.innerWidth - bubble.width - 4
+	);
+	tooltipEl.style.top = `${Math.max(4, top)}px`;
+	tooltipEl.style.left = `${left}px`;
+}
+
+function scheduleTooltip(target: HTMLElement): void {
+	hideTooltip();
+	tooltipShowTimer = setTimeout(() => showTooltipFor(target), 350);
+}
+
+document.addEventListener('mouseover', e => {
+	const target = (e.target as HTMLElement).closest<HTMLElement>('[data-tooltip]');
+	if (target) {
+		scheduleTooltip(target);
+	}
+});
+document.addEventListener('mouseout', e => {
+	if ((e.target as HTMLElement).closest('[data-tooltip]')) {
+		hideTooltip();
+	}
+});
+document.addEventListener('focusin', e => {
+	const target = (e.target as HTMLElement).closest<HTMLElement>('[data-tooltip]');
+	if (target) {
+		showTooltipFor(target);
+	}
+});
+document.addEventListener('focusout', e => {
+	if ((e.target as HTMLElement).closest('[data-tooltip]')) {
+		hideTooltip();
+	}
+});
+document.addEventListener('mousedown', hideTooltip);
+itemListEl.addEventListener('scroll', hideTooltip);
+
 let activeTab = 'global';
 let selectedItemId: string | null = null;
 let items: PasteboardItem[] = [];
@@ -107,8 +176,9 @@ function applySettings(s: UiSettings): void {
 	settings = s;
 	btnAutosave.classList.toggle('active', s.autosave);
 	btnAutosave.setAttribute('aria-pressed', String(s.autosave));
-	btnAutosave.title = s.autosave ? 'Autosave on (click to disable)' : 'Autosave off (click to enable)';
-	btnAutosave.setAttribute('aria-label', btnAutosave.title);
+	const label = s.autosave ? 'Autosave on (click to disable)' : 'Autosave off (click to enable)';
+	btnAutosave.setAttribute('data-tooltip', label);
+	btnAutosave.setAttribute('aria-label', label);
 	btnAutosave.innerHTML = s.autosave ? ICONS.autosaveOn : ICONS.autosaveOff;
 	applyEditorBorder(s.editorBorder);
 }
@@ -143,7 +213,7 @@ function setAutosaveIndicator(state: 'idle' | 'pending' | 'saved'): void {
 
 /** Host confirmed the autosave actually persisted; attach the real timestamp as a tooltip over the optimistic "Saved" text. */
 function handleAutosaveAck(savedAt: number): void {
-	autosaveIndicator.title = `Saved at ${new Date(savedAt).toLocaleTimeString()}`;
+	autosaveIndicator.setAttribute('data-tooltip', `Saved at ${new Date(savedAt).toLocaleTimeString()}`);
 }
 
 function filteredItems(): PasteboardItem[] {
@@ -163,8 +233,9 @@ function renderTabs(tabs: WorkspaceTabInfo[]): void {
 		btn.type = 'button';
 		btn.className = 'tab' + (tab.id === activeTab ? ' active' : '');
 		btn.textContent = tab.label;
-		btn.title = `Switch to ${tab.label}`;
-		btn.setAttribute('aria-label', btn.title);
+		const tabTooltip = `Switch to ${tab.label}`;
+		btn.setAttribute('data-tooltip', tabTooltip);
+		btn.setAttribute('aria-label', tabTooltip);
 		btn.setAttribute('role', 'tab');
 		btn.setAttribute('aria-selected', String(tab.id === activeTab));
 		btn.addEventListener('click', () => {
@@ -222,7 +293,7 @@ function renderItemList(): void {
 		deleteBtn.type = 'button';
 		deleteBtn.className = 'item-delete';
 		deleteBtn.setAttribute('aria-label', `Delete ${item.title || 'Untitled'}`);
-		deleteBtn.title = 'Delete';
+		deleteBtn.setAttribute('data-tooltip', 'Delete');
 		deleteBtn.innerHTML = ICONS.deleteItem;
 		deleteBtn.addEventListener('click', e => {
 			e.stopPropagation();
@@ -282,8 +353,8 @@ function updatePinButton(): void {
 	if (!selectedItemId) {
 		btnPin.setAttribute('disabled', 'true');
 		btnPin.setAttribute('aria-pressed', 'false');
-		btnPin.title = 'Pin/unpin';
-		btnPin.setAttribute('aria-label', btnPin.title);
+		btnPin.setAttribute('data-tooltip', 'Pin/unpin');
+		btnPin.setAttribute('aria-label', 'Pin/unpin');
 		btnPin.classList.remove('active');
 		btnPin.innerHTML = ICONS.pinOff;
 		return;
@@ -291,8 +362,9 @@ function updatePinButton(): void {
 	btnPin.removeAttribute('disabled');
 	const item = items.find(i => i.id === selectedItemId);
 	const pinned = item?.pinned ?? false;
-	btnPin.title = pinned ? 'Unpin' : 'Pin';
-	btnPin.setAttribute('aria-label', btnPin.title);
+	const pinLabel = pinned ? 'Unpin' : 'Pin';
+	btnPin.setAttribute('data-tooltip', pinLabel);
+	btnPin.setAttribute('aria-label', pinLabel);
 	btnPin.setAttribute('aria-pressed', String(pinned));
 	btnPin.classList.toggle('active', pinned);
 	btnPin.innerHTML = pinned ? ICONS.pinOn : ICONS.pinOff;

@@ -343,7 +343,7 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	<header class="header">
 		<div id="tabs" class="tabs" role="tablist" aria-label="Pasteboard scopes"></div>
 		<nav class="icon-toolbar" aria-label="Pasteboard actions">
-			<button id="btn-autosave" type="button" class="icon-btn" tabindex="0" aria-label="Toggle autosave" aria-pressed="true" title="Toggle autosave">
+			<button id="btn-autosave" type="button" class="icon-btn" tabindex="0" aria-label="Toggle autosave" aria-pressed="true" data-tooltip="Toggle autosave">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<path d="M3 12a9 9 0 0 1 15-6.7L20 7" />
 					<path d="M20 3v4h-4" />
@@ -351,28 +351,28 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 					<path d="M4 21v-4h4" />
 				</svg>
 			</button>
-			<button id="btn-new" type="button" class="icon-btn" tabindex="0" aria-label="New note" title="New note">
+			<button id="btn-new" type="button" class="icon-btn" tabindex="0" aria-label="New note" data-tooltip="New note">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5L13.5 3Z" />
 					<path d="M13 3v5a1 1 0 0 0 1 1h5" />
 					<path d="M12 12v6M9 15h6" />
 				</svg>
 			</button>
-			<button id="btn-pin" type="button" class="icon-btn" tabindex="0" aria-label="Pin or unpin" aria-pressed="false" title="Pin or unpin" disabled>
+			<button id="btn-pin" type="button" class="icon-btn" tabindex="0" aria-label="Pin or unpin" aria-pressed="false" data-tooltip="Pin or unpin" disabled>
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<path d="M9 4h6" />
 					<path d="M11 4v5.5a2 2 0 0 1-.9 1.67l-2.2 1.47A1.5 1.5 0 0 0 7 14h10a1.5 1.5 0 0 0-.9-1.36l-2.2-1.47A2 2 0 0 1 13 9.5V4" />
 					<path d="M12 14v6" />
 				</svg>
 			</button>
-			<button id="btn-save" type="button" class="icon-btn" tabindex="0" aria-label="Save note" title="Save note">
+			<button id="btn-save" type="button" class="icon-btn" tabindex="0" aria-label="Save note" data-tooltip="Save note">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<path d="M17.5 21H6.5A1.5 1.5 0 0 1 5 19.5v-15A1.5 1.5 0 0 1 6.5 3h9.086a1.5 1.5 0 0 1 1.06.44l2.914 2.914a1.5 1.5 0 0 1 .44 1.06V19.5a1.5 1.5 0 0 1-1.5 1.5Z" />
 					<path d="M8 3v5h7V3" />
 					<path d="M8 21v-7h8v7" />
 				</svg>
 			</button>
-			<button id="btn-panel" type="button" class="icon-btn" tabindex="0" aria-label="Toggle panel view" title="Toggle panel view">
+			<button id="btn-panel" type="button" class="icon-btn" tabindex="0" aria-label="Toggle panel view" data-tooltip="Toggle panel view">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<rect x="3" y="4" width="18" height="16" rx="2" />
 					<path d="M15 4v16" />
@@ -390,7 +390,7 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	</main>
 
 	<footer class="bottom-panel">
-		<input id="search" type="search" placeholder="Search saved items…" aria-label="Search items" title="Search saved items" tabindex="3" />
+		<input id="search" type="search" placeholder="Search saved items…" aria-label="Search items" data-tooltip="Search saved items" tabindex="3" />
 		<ul id="item-list" class="item-list" role="listbox" aria-label="Saved items"></ul>
 		<p id="empty-state" class="empty-state" hidden>No saved items yet.</p>
 	</footer>
