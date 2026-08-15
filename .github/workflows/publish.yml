@@ -1,0 +1,29 @@
+name: Publish VSCode Extension
+
+on:
+  push:
+    tags:
+      - 'v*'   # runs when you push a tag like v1.0.0 to GitHub
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install vsce
+        run: npm install -g vsce
+
+      - name: Publish extension
+        run: vsce publish
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_TOKEN }}
