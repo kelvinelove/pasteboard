@@ -17,12 +17,13 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 
 	const provider = new PasteboardProvider(ctx, storage);
 
-	// Create the right-aligned Status Bar item the user will see in the bottom-right corner.
+	// Right-aligned, icon-only Status Bar toggle — deliberately just the glyph, no
+	// text label, so it stays a small, unobtrusive fixture in the bottom-right corner.
 	const statusBarItem = vscode.window.createStatusBarItem(
 		vscode.StatusBarAlignment.Right,
 		STATUS_BAR_PRIORITY
 	);
-	statusBarItem.text = '$(clipboard) Pasteboard';
+	statusBarItem.text = '$(clipboard)';
 	statusBarItem.tooltip = 'Toggle Pasteboard';
 	statusBarItem.command = 'pasteboard.toggleFromStatusBar';
 	statusBarItem.show();

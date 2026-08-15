@@ -6,7 +6,7 @@
 	"author": "kelvinelove",
 	"license": "MIT",
 	"version": "0.5.0",
-	"icon": "media/logo.png",
+	"icon": "media/icon.png",
 	"engines": {
 		"vscode": "^1.74.0"
 	},
@@ -26,6 +26,10 @@
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/kelvinelove/pasteboard"
+	},
+	"homepage": "https://github.com/kelvinelove/pasteboard#readme",
+	"bugs": {
+		"url": "https://github.com/kelvinelove/pasteboard/issues"
 	},
 	"activationEvents": [
 		"onStartupFinished",
@@ -60,6 +64,7 @@
 		"@types/vscode": "^1.74.0",
 		"@typescript-eslint/eslint-plugin": "^8.25.0",
 		"@typescript-eslint/parser": "^8.25.0",
+		"@vscode/vsce": "^3.2.1",
 		"eslint": "^9.21.0",
 		"typescript": "^5.7.3"
 	},
