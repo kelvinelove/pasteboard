@@ -18,12 +18,9 @@ jobs:
           node-version: 24
 
       - name: Install dependencies
-        run: npm install
-
-      - name: Install vsce
-        run: npm install -g vsce
+        run: npm ci
 
       - name: Publish extension
-        run: vsce publish
+        run: npx vsce publish
         env:
           VSCE_PAT: ${{ secrets.VSCE_TOKEN }}
