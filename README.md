@@ -4,7 +4,7 @@ Pasteboard is a compact, typing-first note surface for VS Code. It opens from a 
 
 ## What you’ll see
 
-- A tiny $(clipboard) icon-only Status Bar item in the bottom-right corner — hover it for a tooltip, click to toggle.
+- A $(clipboard) $(notebook) Pasteboard Status Bar item in the bottom-right corner — highlighted while Pasteboard is open, plain when it's closed. Click to toggle.
 - A compact editor with a subtle, theme-aware border.
 - Search and saved-note history at the bottom of the view.
 - Inline SVG toolbar buttons for autosave, new note, pin, duplicate, save, and panel toggle.
@@ -97,7 +97,7 @@ npm install
 npm run compile
 ```
 
-Press F5 to start the Extension Development Host. Click the $(clipboard) icon in the Status Bar to try it.
+Press F5 to start the Extension Development Host. Click the $(clipboard) $(notebook) Pasteboard item in the Status Bar to try it.
 
 To package an extension bundle:
 

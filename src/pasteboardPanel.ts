@@ -4,6 +4,8 @@ interface PasteboardPanelOptions {
 	viewType: string;
 	title: string;
 	onDidDispose: () => void;
+	/** Fired on every visible/hidden transition (e.g. switching editor tabs away and back), not just disposal. */
+	onDidChangeViewState?: () => void;
 	extensionUri: vscode.Uri;
 }
 
@@ -45,6 +47,7 @@ export class PasteboardPanel {
 			if (this.panel.visible) {
 				void this.applyCompactWidthHeuristic();
 			}
+			options.onDidChangeViewState?.();
 		});
 	}
 

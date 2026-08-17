@@ -5,7 +5,7 @@
 Initial public release.
 
 - Compact, typing-first note editor in a sidebar WebviewView (or an optional Beside panel), with GLOBAL and per-workspace tabs.
-- Icon-only `$(clipboard)` Status Bar toggle on the right.
+- Status Bar toggle on the right (`$(notebook)`).
 - Autosave with a configurable, clamped (250–10000ms) idle delay; flushes on hide/close/blur, and confirms with the host once a save actually persists.
 - Modern stroke-based SVG toolbar: autosave on/off, new, pin/unpin, duplicate, save, and panel toggle — all theme-aware (light/dark/high-contrast) and keyboard-accessible.
 - Custom hover/focus tooltips on every icon, tab, and list control (native `title` tooltips don't reliably render inside VS Code webviews).

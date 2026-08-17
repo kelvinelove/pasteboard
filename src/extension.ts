@@ -17,16 +17,26 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 
 	const provider = new PasteboardProvider(ctx, storage);
 
-	// Right-aligned, icon-only Status Bar toggle — deliberately just the glyph, no
-	// text label, so it stays a small, unobtrusive fixture in the bottom-right corner.
+	// Right-aligned Status Bar toggle: clipboard icon + label, highlighted (prominent
+	// background) whenever Pasteboard is open, plain when it's closed.
 	const statusBarItem = vscode.window.createStatusBarItem(
 		vscode.StatusBarAlignment.Right,
 		STATUS_BAR_PRIORITY
 	);
-	statusBarItem.text = '$(clipboard)';
+	statusBarItem.text = '$(clipboard) $(notebook) Pasteboard';
 	statusBarItem.tooltip = 'Toggle Pasteboard';
 	statusBarItem.command = 'pasteboard.toggleFromStatusBar';
 	statusBarItem.show();
+
+	const updateStatusBarHighlight = (isOpen: boolean): void => {
+		statusBarItem.backgroundColor = isOpen
+			? new vscode.ThemeColor('statusBarItem.prominentBackground')
+			: undefined;
+		statusBarItem.color = isOpen
+			? new vscode.ThemeColor('statusBarItem.prominentForeground')
+			: undefined;
+	};
+	updateStatusBarHighlight(provider.isOpen());
 
 	// Cross-IDE sync for pasteboard.storageMode = "file": pick up edits made to
 	// .vscode/pasteboard.json by another editor window (or another IDE entirely).
@@ -40,6 +50,7 @@ export async function activate(ctx: vscode.ExtensionContext): Promise<void> {
 
 	ctx.subscriptions.push(
 		statusBarItem,
+		provider.onDidChangeOpenState(updateStatusBarHighlight),
 		fileWatcher,
 		fileWatcher.onDidChange(reloadFromDiskIfFileMode),
 		fileWatcher.onDidCreate(reloadFromDiskIfFileMode),

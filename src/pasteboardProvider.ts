@@ -42,6 +42,10 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	private lastDeleted?: { tabId: TabScope; item: PasteboardItem };
 	private undoTimer?: ReturnType<typeof setTimeout>;
 
+	private readonly _onDidChangeOpenState = new vscode.EventEmitter<boolean>();
+	/** Fires whenever the sidebar view or Beside panel's visible/open state changes, for the Status Bar highlight. */
+	readonly onDidChangeOpenState = this._onDidChangeOpenState.event;
+
 	private readonly uiState: UiState = {
 		activeTab: 'global',
 		selectedItemId: null,
@@ -70,17 +74,20 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		webviewView.onDidChangeVisibility(() => {
 			if (!webviewView.visible) {
 				void this.flushDraft();
+				this.notifyOpenStateChange();
 				return;
 			}
 			if (this.panel) {
 				this.closePanel();
 			}
+			this.notifyOpenStateChange();
 		});
 
 		webviewView.onDidDispose(() => {
 			void this.flushDraft();
 			this.detachWebview(webviewView.webview);
 			this.view = undefined;
+			this.notifyOpenStateChange();
 		});
 
 		// VS Code has no memory of a good width for a view container it's never shown
@@ -90,10 +97,20 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		// remembers whatever width the sidebar settles at (ours or the user's own
 		// resize), so this must never re-run and fight a deliberate manual resize.
 		void this.applyCompactSidebarWidthOnce();
+		this.notifyOpenStateChange();
 	}
 
 	isViewVisible(): boolean {
 		return this.view?.visible ?? false;
+	}
+
+	/** Whether either surface (sidebar view or Beside panel) is currently visible — drives the Status Bar highlight. */
+	isOpen(): boolean {
+		return (this.view?.visible ?? false) || (this.panel?.visible ?? false);
+	}
+
+	private notifyOpenStateChange(): void {
+		this._onDidChangeOpenState.fire(this.isOpen());
 	}
 
 	private async applyCompactSidebarWidthOnce(): Promise<void> {
@@ -176,6 +193,7 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		if (this.panel) {
 			this.panel.reveal();
 			void this.updatePlacement('panel-beside');
+			this.notifyOpenStateChange();
 			return;
 		}
 
@@ -196,7 +214,9 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 					this.detachWebview(this.panel.webview);
 				}
 				this.panel = undefined;
+				this.notifyOpenStateChange();
 			},
+			onDidChangeViewState: () => this.notifyOpenStateChange(),
 			extensionUri: this.ctx.extensionUri
 		});
 
@@ -204,11 +224,13 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		// in pasteboardPanel.ts for why this must not also happen inside PasteboardPanel.
 		this.attachWebview(this.panel.webview, this.panel.webview.options);
 		void this.updatePlacement('panel-beside');
+		this.notifyOpenStateChange();
 	}
 
 	closePanel(): void {
 		this.panel?.dispose();
 		this.panel = undefined;
+		this.notifyOpenStateChange();
 	}
 
 	isPanelOpen(): boolean {
@@ -226,6 +248,7 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 			void vscode.commands.executeCommand('workbench.action.closeSidebar');
 		}
 		this.view = undefined;
+		this.notifyOpenStateChange();
 	}
 
 	// ── Commands ─────────────────────────────────────────────────────────
