@@ -530,45 +530,49 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	<header class="header">
 		<div id="tabs" class="tabs" role="tablist" aria-label="Pasteboard scopes"></div>
 		<nav class="icon-toolbar" aria-label="Pasteboard actions">
-			<button id="btn-autosave" type="button" class="icon-btn" tabindex="0" aria-label="Toggle autosave" aria-pressed="true" data-tooltip="Toggle autosave">
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<circle cx="12" cy="12" r="9" />
-					<path d="M12 7v5l3.5 2" />
-				</svg>
-			</button>
-			<button id="btn-new" type="button" class="icon-btn" tabindex="0" aria-label="New note" data-tooltip="New note">
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5L13.5 3Z" />
-					<path d="M13 3v5a1 1 0 0 0 1 1h5" />
-					<path d="M12 12v6M9 15h6" />
-				</svg>
-			</button>
+			<div class="toolbar-group toolbar-primary" role="group" aria-label="Note actions">
+				<button id="btn-new" type="button" class="icon-btn icon-btn-primary" tabindex="0" aria-label="New note" data-tooltip="New note">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<path d="M12 5v14M5 12h14" />
+					</svg>
+				</button>
+				<button id="btn-save" type="button" class="icon-btn" tabindex="0" aria-label="Save note" data-tooltip="Save note">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<path d="M5 4h12l3 3v13H4V5a1 1 0 0 1 1-1Z" />
+						<path d="M8 4v6h8V4M8 20v-6h8v6" />
+					</svg>
+				</button>
+			</div>
+			<span class="toolbar-divider" aria-hidden="true"></span>
+			<div class="toolbar-group" role="group" aria-label="Selected note actions">
 			<button id="btn-pin" type="button" class="icon-btn" tabindex="0" aria-label="Pin or unpin" aria-pressed="false" data-tooltip="Pin or unpin" disabled>
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<path d="M9 4h6" />
-					<path d="M11 4v5.5a2 2 0 0 1-.9 1.67l-2.2 1.47A1.5 1.5 0 0 0 7 14h10a1.5 1.5 0 0 0-.9-1.36l-2.2-1.47A2 2 0 0 1 13 9.5V4" />
-					<path d="M12 14v6" />
+					<path d="M10 4v5l-3.5 3.5V14h11v-1.5L14 9V4M12 14v6" />
 				</svg>
 			</button>
 			<button id="btn-duplicate" type="button" class="icon-btn" tabindex="0" aria-label="Duplicate note" data-tooltip="Duplicate note" disabled>
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<rect x="9" y="9" width="11" height="11" rx="2" />
-					<path d="M5 15V5a2 2 0 0 1 2-2h10" />
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<rect x="8" y="8" width="12" height="12" rx="1.5" />
+					<path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
 				</svg>
 			</button>
-			<button id="btn-save" type="button" class="icon-btn" tabindex="0" aria-label="Save note" data-tooltip="Save note">
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<path d="M17.5 21H6.5A1.5 1.5 0 0 1 5 19.5v-15A1.5 1.5 0 0 1 6.5 3h9.086a1.5 1.5 0 0 1 1.06.44l2.914 2.914a1.5 1.5 0 0 1 .44 1.06V19.5a1.5 1.5 0 0 1-1.5 1.5Z" />
-					<path d="M8 3v5h7V3" />
-					<path d="M8 21v-7h8v7" />
+			</div>
+			<span class="toolbar-divider" aria-hidden="true"></span>
+			<div class="toolbar-group" role="group" aria-label="View and save options">
+			<button id="btn-autosave" type="button" class="icon-btn" tabindex="0" aria-label="Toggle autosave" aria-pressed="true" data-tooltip="Toggle autosave">
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M6.5 18.5h11a4 4 0 0 0 .6-7.95A6.5 6.5 0 0 0 5.7 9.1a4.8 4.8 0 0 0 .8 9.4Z" />
+					<path d="m9 13 2 2 4-4" />
 				</svg>
 			</button>
 			<button id="btn-panel" type="button" class="icon-btn" tabindex="0" aria-label="Toggle panel view" data-tooltip="Toggle panel view">
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<rect x="3" y="4" width="18" height="16" rx="2" />
-					<path d="M15 4v16" />
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />
+					<path d="M14.5 4.5v15" />
 				</svg>
 			</button>
+			</div>
 		</nav>
 	</header>
 
@@ -581,7 +585,10 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	</main>
 
 	<footer class="bottom-panel">
-		<input id="search" type="search" placeholder="Search saved items…" aria-label="Search items" data-tooltip="Search saved items" tabindex="3" />
+		<label class="search-field">
+			<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.5 15.5 4.2 4.2"/></svg>
+			<input id="search" type="search" placeholder="Search notes" aria-label="Search notes" tabindex="3" />
+		</label>
 		<ul id="item-list" class="item-list" role="listbox" aria-label="Saved items"></ul>
 		<p id="empty-state" class="empty-state" hidden>No saved items yet. Write above to create your first note.</p>
 	</footer>
