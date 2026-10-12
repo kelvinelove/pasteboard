@@ -53,7 +53,7 @@ type HostMessage =
 	| { type: 'settingsUpdate'; settings: UiSettings }
 	| { type: 'command'; command: 'new' | 'save' | 'delete' | 'openGlobal' | 'focusEditor' }
 	| { type: 'error'; message: string }
-	| { type: 'autosaveAck'; itemId: string | null; savedAt: number }
+	| { type: 'autosaveAck'; itemId: string | null; savedAt: number; revision: number }
 	| { type: 'itemDeleted'; tabId: string; item: PasteboardItem };
 
 const vscode = acquireVsCodeApi();
@@ -79,8 +79,8 @@ const undoToastBtn = document.getElementById('undo-toast-btn') as HTMLButtonElem
 const ICON_STROKE = 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
 
 const ICONS = {
-	autosaveOn: `<svg width="16" height="16" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L20 7"/><path d="M20 3v4h-4"/><path d="M21 12a9 9 0 0 1-15 6.7L4 17"/><path d="M4 21v-4h4"/></svg>`,
-	autosaveOff: `<svg width="16" height="16" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L20 7"/><path d="M20 3v4h-4"/><path d="M21 12a9 9 0 0 1-15 6.7L4 17"/><path d="M4 21v-4h4"/><line x1="4" y1="4" x2="20" y2="20" opacity="0.6"/></svg>`,
+	autosaveOn: `<svg width="16" height="16" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>`,
+	autosaveOff: `<svg width="16" height="16" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/><line x1="4" y1="4" x2="20" y2="20" opacity="0.6"/></svg>`,
 	pinOn: `<svg width="16" height="16" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M9 4h6"/><path d="M11 4v5.5a2 2 0 0 1-.9 1.67l-2.2 1.47A1.5 1.5 0 0 0 7 14h10a1.5 1.5 0 0 0-.9-1.36l-2.2-1.47A2 2 0 0 1 13 9.5V4" fill="currentColor" fill-opacity="0.35"/><path d="M12 14v6"/></svg>`,
 	pinOff: `<svg width="16" height="16" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M9 4h6"/><path d="M11 4v5.5a2 2 0 0 1-.9 1.67l-2.2 1.47A1.5 1.5 0 0 0 7 14h10a1.5 1.5 0 0 0-.9-1.36l-2.2-1.47A2 2 0 0 1 13 9.5V4"/><path d="M12 14v6"/></svg>`,
 	deleteItem: `<svg width="14" height="14" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>`
@@ -169,13 +169,15 @@ let settings: UiSettings = {
 };
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+let draftRevision = 0;
+let pendingRevision = 0;
 
 function post(message: Record<string, unknown>): void {
 	vscode.postMessage(message);
 }
 
 function sanitizeText(value: string): string {
-	return value.replace(/\u0000/g, '').trim();
+	return value.replace(/\u0000/g, '');
 }
 
 function applySettings(s: UiSettings): void {
@@ -199,7 +201,7 @@ function applyEditorBorder(border: string | boolean): void {
 		`${width} solid var(--vscode-editorWidget-border, var(--vscode-panel-border, var(--vscode-editor-foreground)))`;
 }
 
-function setAutosaveIndicator(state: 'idle' | 'pending' | 'saved'): void {
+function setAutosaveIndicator(state: 'idle' | 'pending' | 'saved' | 'unsaved' | 'error'): void {
 	switch (state) {
 		case 'pending':
 			autosaveIndicator.textContent = settings.autosave ? 'Saving…' : '';
@@ -211,6 +213,12 @@ function setAutosaveIndicator(state: 'idle' | 'pending' | 'saved'): void {
 					autosaveIndicator.textContent = settings.autosave ? 'Autosave on' : '';
 				}
 			}, 1500);
+			break;
+		case 'unsaved':
+			autosaveIndicator.textContent = 'Unsaved · autosave off';
+			break;
+		case 'error':
+			autosaveIndicator.textContent = 'Save failed';
 			break;
 		default:
 			autosaveIndicator.textContent = settings.autosave ? 'Autosave on' : '';
@@ -254,8 +262,18 @@ function renderTabs(tabs: WorkspaceTabInfo[]): void {
 		btn.setAttribute('aria-label', tabTooltip);
 		btn.setAttribute('role', 'tab');
 		btn.setAttribute('aria-selected', String(tab.id === activeTab));
+		btn.tabIndex = tab.id === activeTab ? 0 : -1;
 		btn.addEventListener('click', () => {
 			post({ type: 'switchTab', tabId: tab.id });
+		});
+		btn.addEventListener('keydown', e => {
+			if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
+				return;
+			}
+			e.preventDefault();
+			const next = e.key === 'ArrowRight' ? btn.nextElementSibling : btn.previousElementSibling;
+			(next as HTMLButtonElement | null)?.focus();
+			(next as HTMLButtonElement | null)?.click();
 		});
 		tabsEl.appendChild(btn);
 	}
@@ -331,6 +349,10 @@ function renderItemList(): void {
 				deleteItemById(item.id);
 			} else if (e.key === 'Enter') {
 				post({ type: 'selectItem', tabId: activeTab, itemId: item.id });
+			} else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+				e.preventDefault();
+				const next = e.key === 'ArrowDown' ? li.nextElementSibling : li.previousElementSibling;
+				(next as HTMLElement | null)?.focus();
 			}
 		});
 
@@ -357,6 +379,7 @@ function applyState(
 	activeTab = msg.activeTab;
 	selectedItemId = msg.selectedItemId;
 	items = msg.items;
+	draftRevision += 1;
 	applyDraft(msg.draft, focusEditor);
 	renderTabs(msg.tabs);
 	renderItemList();
@@ -393,6 +416,7 @@ function postDraftChange(): void {
 	if (suppressDraftPost) {
 		return;
 	}
+	draftRevision += 1;
 	post({
 		type: 'draftChange',
 		tabId: activeTab,
@@ -405,6 +429,7 @@ function postDraftChange(): void {
 
 function scheduleAutosave(): void {
 	if (!settings.autosave) {
+		setAutosaveIndicator('unsaved');
 		return;
 	}
 	if (autosaveTimer) {
@@ -437,6 +462,11 @@ function handleSave(isAutosave = false): void {
 	if (!title.trim() && !content.trim()) {
 		return;
 	}
+	const revision = draftRevision;
+	pendingRevision = revision;
+	if (isAutosave) {
+		setAutosaveIndicator('pending');
+	}
 
 	if (isAutosave) {
 		post({
@@ -444,9 +474,9 @@ function handleSave(isAutosave = false): void {
 			tabId: activeTab,
 			itemId: selectedItemId,
 			title,
-			content
+			content,
+			revision
 		});
-		setAutosaveIndicator('saved');
 		return;
 	}
 
@@ -456,15 +486,16 @@ function handleSave(isAutosave = false): void {
 			post({
 				type: 'updateItem',
 				tabId: activeTab,
-				item: { ...existing, title, content }
+				item: { ...existing, title, content },
+				revision
 			});
-			setAutosaveIndicator('saved');
+			setAutosaveIndicator('pending');
 			return;
 		}
 	}
 
-	post({ type: 'createItem', tabId: activeTab, title, content });
-	setAutosaveIndicator('saved');
+	post({ type: 'createItem', tabId: activeTab, title, content, revision });
+	setAutosaveIndicator('pending');
 }
 
 function handlePin(): void {
@@ -564,9 +595,13 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 			break;
 		case 'error':
 			console.error('[Pasteboard]', msg.message);
+			setAutosaveIndicator('error');
 			break;
 		case 'autosaveAck':
-			handleAutosaveAck(msg.savedAt);
+			if (msg.revision === pendingRevision) {
+				setAutosaveIndicator('saved');
+				handleAutosaveAck(msg.savedAt);
+			}
 			break;
 		case 'itemDeleted':
 			showUndoToast(msg.tabId, msg.item);

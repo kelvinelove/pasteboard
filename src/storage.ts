@@ -20,6 +20,7 @@ type StorageMode = 'state' | 'file';
 export class PasteboardStorage {
 	/** In-memory mirror of on-disk file storage, keyed by workspace-folder scope, so getItems() can stay synchronous. */
 	private readonly fileCache = new Map<string, PasteboardItem[]>();
+	private readonly fileReadErrors = new Set<string>();
 
 	constructor(private readonly ctx: vscode.ExtensionContext) {}
 
@@ -83,9 +84,12 @@ export class PasteboardStorage {
 			return;
 		}
 		if (this.usesFile(scope)) {
-			// Update the in-memory cache first so a synchronous getItems() right after this call sees the write immediately.
-			this.fileCache.set(scope, pruned);
+			if (this.fileReadErrors.has(scope)) {
+				throw new Error(`Cannot save Pasteboard items for ${this.folderForScope(scope)?.name ?? 'this workspace'} until .vscode/pasteboard.json is readable and valid JSON.`);
+			}
 			await this.writeFile(scope, pruned);
+			// Only publish the new cache after the atomic disk replacement succeeds.
+			this.fileCache.set(scope, pruned);
 			return;
 		}
 		await this.ctx.workspaceState.update(this.workspaceKey(scope), pruned);
@@ -112,10 +116,21 @@ export class PasteboardStorage {
 				try {
 					const raw = await vscode.workspace.fs.readFile(this.fileUri(folder));
 					const parsed: unknown = JSON.parse(new TextDecoder().decode(raw));
-					this.fileCache.set(scope, Array.isArray(parsed) ? (parsed as PasteboardItem[]) : []);
-				} catch {
-					// Missing, unreadable, or invalid JSON — treat as no items yet; a save will (re)create the file.
-					this.fileCache.set(scope, []);
+					if (!Array.isArray(parsed)) {
+						throw new Error('Expected an array of Pasteboard items');
+					}
+					this.fileCache.set(scope, parsed as PasteboardItem[]);
+					this.fileReadErrors.delete(scope);
+				} catch (error) {
+					if ((error as vscode.FileSystemError)?.code === 'FileNotFound') {
+						this.fileCache.set(scope, []);
+						this.fileReadErrors.delete(scope);
+						return;
+					}
+					this.fileReadErrors.add(scope);
+					// Keep the previous cache on malformed/unreadable data so a subsequent save
+					// cannot silently replace a recoverable file with an empty list.
+					void vscode.window.showErrorMessage(`Pasteboard could not read .vscode/pasteboard.json in ${folder.name}. Fix the JSON or restore the file before saving.`);
 				}
 			})
 		);
@@ -132,7 +147,15 @@ export class PasteboardStorage {
 		}
 		await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(folder.uri, '.vscode'));
 		const encoded = new TextEncoder().encode(JSON.stringify(items, null, 2));
-		await vscode.workspace.fs.writeFile(this.fileUri(folder), encoded);
+		const destination = this.fileUri(folder);
+		const temporary = vscode.Uri.joinPath(folder.uri, '.vscode', `pasteboard.${Date.now()}.tmp`);
+		await vscode.workspace.fs.writeFile(temporary, encoded);
+		try {
+			await vscode.workspace.fs.rename(temporary, destination, { overwrite: true });
+		} catch (error) {
+			try { await vscode.workspace.fs.delete(temporary); } catch { /* best-effort cleanup */ }
+			throw error;
+		}
 	}
 
 	/** Surface pruning instead of silently deleting old notes with no trace. */

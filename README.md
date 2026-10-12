@@ -8,6 +8,8 @@ Pasteboard is a compact, typing-first note surface for VS Code. It opens from a 
 - A compact editor with a subtle, theme-aware border.
 - Search and saved-note history at the bottom of the view.
 - Inline SVG toolbar buttons for autosave, new note, pin, duplicate, save, and panel toggle.
+- Save status changes to “Saved” only after the extension host confirms persistence; failed writes are surfaced.
+- Switching notes or scopes flushes the current autosaved draft. With autosave disabled, Pasteboard asks whether to save or discard edits before navigation.
 - Hover-reveal delete controls for each saved item, with a few-seconds "Undo" toast after deleting.
 - Tab pills show a live item count per workspace/GLOBAL scope.
 
@@ -87,6 +89,7 @@ Example:
 - Global notes are stored in global state under pasteboard.global — this is always cross-workspace, regardless of storageMode.
 - Workspace notes are stored per workspace folder in workspace state by default (pasteboard.storageMode: "state").
 - Set pasteboard.storageMode to "file" to instead persist each workspace folder's notes to a `.vscode/pasteboard.json` file in that folder. This lets the same notes show up when the folder is opened in a different editor window or a different IDE. The extension watches that file and refreshes the view if it changes on disk (e.g. edited by another window). Commit the file if you want the team to share notes, or gitignore it to keep them local.
+- File-backed writes use a temporary file and rename. If the JSON is invalid or unreadable, Pasteboard reports the problem and blocks saves until the file can be read, preventing an accidental overwrite with an empty list.
 - Legacy keys such as workspace-notepad and workspace-notepad.notes are migrated on activation.
 - Items are pruned to the configured max item count, preserving pinned items first. A notification appears whenever pruning actually removes something, so old notes never disappear silently.
 

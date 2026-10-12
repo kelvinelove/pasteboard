@@ -32,9 +32,9 @@ export type WebviewToHostMessage =
 	| { type: 'ready' }
 	| { type: 'switchTab'; tabId: TabScope }
 	| { type: 'selectItem'; tabId: TabScope; itemId: string | null }
-	| { type: 'createItem'; tabId: TabScope; title: string; content: string }
-	| { type: 'updateItem'; tabId: TabScope; item: PasteboardItem }
-	| { type: 'autosave'; tabId: TabScope; itemId: string | null; title: string; content: string }
+	| { type: 'createItem'; tabId: TabScope; title: string; content: string; revision?: number }
+	| { type: 'updateItem'; tabId: TabScope; item: PasteboardItem; revision?: number }
+	| { type: 'autosave'; tabId: TabScope; itemId: string | null; title: string; content: string; revision: number }
 	| { type: 'deleteItem'; tabId: TabScope; itemId: string }
 	| { type: 'undoDelete'; tabId: TabScope; itemId: string }
 	| { type: 'duplicateItem'; tabId: TabScope; itemId: string }
@@ -68,6 +68,6 @@ export type HostToWebviewMessage =
 	| { type: 'command'; command: 'new' | 'save' | 'delete' | 'openGlobal' | 'focusEditor' }
 	| { type: 'error'; message: string }
 	/** Sent after the host actually persists an autosave, so the webview can confirm real (not optimistic) save state. */
-	| { type: 'autosaveAck'; itemId: string | null; savedAt: number }
+	| { type: 'autosaveAck'; itemId: string | null; savedAt: number; revision: number }
 	/** Sent right after a delete persists, so the webview can offer a timed "Undo" toast. */
 	| { type: 'itemDeleted'; tabId: TabScope; item: PasteboardItem };

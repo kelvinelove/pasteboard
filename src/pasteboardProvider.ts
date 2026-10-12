@@ -28,14 +28,25 @@ interface UiState {
 	drafts: Map<TabScope, DraftState>;
 }
 
+interface WebviewUiState {
+	activeTab: TabScope;
+	selectedItemId: string | null;
+	drafts: Map<TabScope, DraftState>;
+	dirty: boolean;
+	baseline?: Pick<PasteboardItem, 'title' | 'content' | 'updatedAt'>;
+}
+
 /**
  * Shared webview controller for the sidebar WebviewView and optional WebviewPanel.
- * Keeps item lists, drafts, and settings synchronized across all open webviews.
+ * Keeps persisted item lists and settings synchronized while isolating each surface's
+ * current scope, selection, and draft.
  */
 export class PasteboardProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView;
 	private panel?: PasteboardPanel;
 	private readonly webviews = new Set<vscode.Webview>();
+	private readonly webviewStates = new Map<vscode.Webview, WebviewUiState>();
+	private focusedWebview?: vscode.Webview;
 	/** Reentrancy guard for toggleSidebar() — see the comment at its call site. */
 	private isTogglingSidebar = false;
 	/** The most recently deleted item, kept around briefly so "Undo" can restore it. */
@@ -73,7 +84,10 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 
 		webviewView.onDidChangeVisibility(() => {
 			if (!webviewView.visible) {
-				void this.flushDraft();
+				const state = this.webviewStates.get(webviewView.webview);
+				if (state) {
+					void this.flushWebviewDraft(state);
+				}
 				this.notifyOpenStateChange();
 				return;
 			}
@@ -84,9 +98,14 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		});
 
 		webviewView.onDidDispose(() => {
-			void this.flushDraft();
+			const state = this.webviewStates.get(webviewView.webview);
+			if (state) {
+				void this.flushWebviewDraft(state);
+			}
 			this.detachWebview(webviewView.webview);
-			this.view = undefined;
+			if (this.view === webviewView) {
+				this.view = undefined;
+			}
 			this.notifyOpenStateChange();
 		});
 
@@ -197,28 +216,34 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 			return;
 		}
 
-		// Mirror of the guard in resolveWebviewView(): never let a Beside panel come up
-		// while the sidebar view is still visible. There's no VS Code API to hide a
-		// single view container, so this collapses the whole Primary Side Bar — the user
-		// can reopen it from the Activity Bar at any time.
-		if (this.view?.visible) {
-			void vscode.commands.executeCommand('workbench.action.closeSidebar');
-		}
+		// No longer force-closing the sidebar here before opening the panel — that used
+		// workbench.action.closeSidebar, which collapses the whole Primary Side Bar and
+		// forces an editor/terminal reflow as an unrequested side effect of opening the
+		// panel. The sidebar and the Beside panel can now both be visible at once; that's
+		// minor redundancy (the same notes shown twice), not corruption — the actual bug
+		// that guard was defending against (duplicate message-listener registration
+		// causing the panel to close-then-reopen itself) is fixed at the source in
+		// pasteboardPanel.ts.
 
-		this.panel = new PasteboardPanel(this.ctx, {
+		let panelInstance!: PasteboardPanel;
+		panelInstance = new PasteboardPanel(this.ctx, {
 			viewType: PANEL_VIEW_TYPE,
 			title: 'Pasteboard',
 			onDidDispose: () => {
-				void this.flushDraft();
-				if (this.panel) {
-					this.detachWebview(this.panel.webview);
+				const state = this.webviewStates.get(panelInstance.webview);
+				if (state) {
+					void this.flushWebviewDraft(state);
 				}
-				this.panel = undefined;
+				this.detachWebview(panelInstance.webview);
+				if (this.panel === panelInstance) {
+					this.panel = undefined;
+				}
 				this.notifyOpenStateChange();
 			},
 			onDidChangeViewState: () => this.notifyOpenStateChange(),
 			extensionUri: this.ctx.extensionUri
 		});
+		this.panel = panelInstance;
 
 		// Single place that sets html and wires the message listener — see the comment
 		// in pasteboardPanel.ts for why this must not also happen inside PasteboardPanel.
@@ -242,12 +267,21 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 			this.panel.dispose();
 			this.panel = undefined;
 		}
-		// Dropping the reference alone doesn't hide the sidebar UI — actually collapse it
-		// so re-clicking the Status Bar item behaves like a real close, not just amnesia.
 		if (this.view?.visible) {
-			void vscode.commands.executeCommand('workbench.action.closeSidebar');
+			// Deliberately NOT calling workbench.action.closeSidebar here: it collapses
+			// the entire Primary Side Bar (Explorer/Search/whatever else is showing too,
+			// not just Pasteboard's own view), and doing so always makes VS Code reflow
+			// the editor and panel/terminal into the freed space — a much bigger, more
+			// disruptive effect than toggling a small Status Bar icon should cause. There
+			// is no VS Code API to hide a single view container without that reflow, so
+			// we no longer force it; just hand focus back to the editor instead. Use the
+			// Activity Bar icon or Ctrl/Cmd+B to actually collapse the Side Bar.
+			void vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
 		}
-		this.view = undefined;
+		// Do NOT null this.view here: VS Code only calls resolveWebviewView() once per
+		// session and keeps reusing the same WebviewView instance across visibility
+		// toggles, so this.view stays valid (just hidden) — nulling it here would
+		// permanently desync our bookkeeping from reality after the first close.
 		this.notifyOpenStateChange();
 	}
 
@@ -268,6 +302,13 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	switchToGlobalTab(): void {
 		this.uiState.activeTab = 'global';
 		this.uiState.selectedItemId = null;
+		for (const state of this.webviewStates.values()) {
+			state.activeTab = 'global';
+			state.selectedItemId = null;
+			state.drafts.set('global', { title: '', content: '' });
+			state.baseline = undefined;
+			state.dirty = false;
+		}
 		this.broadcastState();
 	}
 
@@ -279,6 +320,11 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	}
 
 	async saveItem(): Promise<void> {
+		const focusedState = this.focusedWebview ? this.webviewStates.get(this.focusedWebview) : undefined;
+		if (focusedState) {
+			await this.flushWebviewDraft(focusedState);
+			return;
+		}
 		const draft = this.getDraft(this.uiState.activeTab);
 		await this.persistDraft(this.uiState.activeTab, this.uiState.selectedItemId, draft.title, draft.content);
 	}
@@ -445,14 +491,21 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 
 		webview.html = this.buildHtml(webview);
 		this.webviews.add(webview);
+		this.webviewStates.set(webview, {
+			activeTab: this.uiState.activeTab,
+			selectedItemId: this.uiState.selectedItemId,
+			drafts: new Map(this.uiState.drafts),
+			dirty: false
+		});
 
 		webview.onDidReceiveMessage((msg: WebviewToHostMessage) => {
-			void this.handleMessage(msg);
+			void this.handleMessage(webview, msg);
 		});
 	}
 
 	private detachWebview(webview: vscode.Webview): void {
 		this.webviews.delete(webview);
+		this.webviewStates.delete(webview);
 	}
 
 	private buildHtml(webview: vscode.Webview): string {
@@ -479,10 +532,8 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		<nav class="icon-toolbar" aria-label="Pasteboard actions">
 			<button id="btn-autosave" type="button" class="icon-btn" tabindex="0" aria-label="Toggle autosave" aria-pressed="true" data-tooltip="Toggle autosave">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<path d="M3 12a9 9 0 0 1 15-6.7L20 7" />
-					<path d="M20 3v4h-4" />
-					<path d="M21 12a9 9 0 0 1-15 6.7L4 17" />
-					<path d="M4 21v-4h4" />
+					<circle cx="12" cy="12" r="9" />
+					<path d="M12 7v5l3.5 2" />
 				</svg>
 			</button>
 			<button id="btn-new" type="button" class="icon-btn" tabindex="0" aria-label="New note" data-tooltip="New note">
@@ -532,7 +583,7 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	<footer class="bottom-panel">
 		<input id="search" type="search" placeholder="Search saved items…" aria-label="Search items" data-tooltip="Search saved items" tabindex="3" />
 		<ul id="item-list" class="item-list" role="listbox" aria-label="Saved items"></ul>
-		<p id="empty-state" class="empty-state" hidden>No saved items yet.</p>
+		<p id="empty-state" class="empty-state" hidden>No saved items yet. Write above to create your first note.</p>
 	</footer>
 
 	<div id="undo-toast" class="undo-toast" role="status" hidden>
@@ -547,39 +598,62 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 
 	// ── Message handling ─────────────────────────────────────────────────
 
-	private async handleMessage(msg: WebviewToHostMessage): Promise<void> {
+	private async handleMessage(webview: vscode.Webview, msg: WebviewToHostMessage): Promise<void> {
+		const state = this.webviewStates.get(webview);
+		if (!state) {
+			return;
+		}
 		try {
 			switch (msg.type) {
 				case 'ready':
-					this.sendInit();
+					this.sendInit(webview);
 					break;
 				case 'switchTab':
-					this.uiState.activeTab = msg.tabId;
-					this.uiState.selectedItemId = null;
-					this.broadcastState();
+					if (!await this.resolvePendingDraft(state)) {
+						break;
+					}
+					state.drafts.set(state.activeTab, { title: '', content: '' });
+					state.activeTab = msg.tabId;
+					state.selectedItemId = null;
+					state.drafts.set(msg.tabId, { title: '', content: '' });
+					state.baseline = undefined;
+					state.dirty = false;
+					this.broadcastState(webview);
 					break;
 				case 'selectItem':
-					await this.selectItem(msg.tabId, msg.itemId);
+					await this.selectWebviewItem(webview, state, msg.tabId, msg.itemId);
 					break;
 				case 'draftChange':
-					this.uiState.activeTab = msg.tabId;
-					this.uiState.selectedItemId = msg.itemId;
-					this.setDraft(msg.tabId, { title: msg.title, content: msg.content });
+					if (state.selectedItemId !== msg.itemId || state.activeTab !== msg.tabId) {
+						state.baseline = msg.itemId
+							? this.storage.getItems(msg.tabId).find(item => item.id === msg.itemId)
+							: undefined;
+					}
+					state.activeTab = msg.tabId;
+					state.selectedItemId = msg.itemId;
+					state.drafts.set(msg.tabId, { title: msg.title, content: msg.content });
+					state.dirty = true;
 					break;
 				case 'createItem':
-					await this.persistCreate(msg.tabId, msg.title, msg.content);
+					await this.persistWebviewDraft(state, msg.tabId, null, msg.title, msg.content);
+					if (msg.revision !== undefined) {
+						this.postTo(webview, { type: 'autosaveAck', itemId: state.selectedItemId, savedAt: Date.now(), revision: msg.revision });
+					}
 					break;
 				case 'updateItem':
-					await this.persistUpdate(msg.tabId, msg.item);
+					await this.persistWebviewDraft(state, msg.tabId, msg.item.id, msg.item.title, msg.item.content);
+					if (msg.revision !== undefined) {
+						this.postTo(webview, { type: 'autosaveAck', itemId: msg.item.id, savedAt: Date.now(), revision: msg.revision });
+					}
 					break;
 				case 'autosave': {
-					// Only ack when something was actually written — an empty draft is a no-op in persistDraft.
-					const saved = await this.persistDraft(msg.tabId, msg.itemId, msg.title, msg.content, true);
+					const saved = await this.persistWebviewDraft(state, msg.tabId, msg.itemId, msg.title, msg.content);
 					if (saved) {
-						this.postToAll({
+						this.postTo(webview, {
 							type: 'autosaveAck',
-							itemId: this.uiState.selectedItemId,
-							savedAt: Date.now()
+							itemId: msg.itemId,
+							savedAt: Date.now(),
+							revision: msg.revision
 						});
 					}
 					break;
@@ -606,9 +680,13 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 					this.togglePanelPosition();
 					break;
 				case 'focus':
+					this.focusedWebview = webview;
 					await vscode.commands.executeCommand('setContext', 'pasteboardFocused', true);
 					break;
 				case 'blur':
+					if (this.focusedWebview === webview) {
+						this.focusedWebview = undefined;
+					}
 					await vscode.commands.executeCommand('setContext', 'pasteboardFocused', false);
 					break;
 			}
@@ -683,16 +761,122 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		await this.flushDraft();
 		this.uiState.activeTab = tabId;
 		this.uiState.selectedItemId = itemId;
+		for (const state of this.webviewStates.values()) {
+			state.activeTab = tabId;
+			state.selectedItemId = itemId;
+		}
 		if (itemId) {
 			const item = this.storage.getItems(tabId).find(i => i.id === itemId);
 			if (item) {
 				this.setDraft(tabId, { title: item.title, content: item.content });
+				for (const state of this.webviewStates.values()) {
+					state.drafts.set(tabId, { title: item.title, content: item.content });
+					state.baseline = { title: item.title, content: item.content, updatedAt: item.updatedAt };
+					state.dirty = false;
+				}
 			}
 		} else {
 			this.setDraft(tabId, { title: '', content: '' });
+			for (const state of this.webviewStates.values()) {
+				state.drafts.set(tabId, { title: '', content: '' });
+				state.baseline = undefined;
+				state.dirty = false;
+			}
 		}
 		this.broadcastState();
 		this.postCommandToWebviews('focusEditor');
+	}
+
+	private async flushWebviewDraft(state: WebviewUiState): Promise<void> {
+		const configAutosave = vscode.workspace.getConfiguration('pasteboard').get<boolean>('autosave', true);
+		if (!configAutosave) {
+			return;
+		}
+		const draft = state.drafts.get(state.activeTab) ?? { title: '', content: '' };
+		const existing = state.selectedItemId
+			? this.storage.getItems(state.activeTab).find(item => item.id === state.selectedItemId)
+			: undefined;
+		if (existing && existing.title === (draft.title.trim() || 'Untitled') && existing.content === draft.content) {
+			return;
+		}
+		await this.persistWebviewDraft(state, state.activeTab, state.selectedItemId, draft.title, draft.content);
+	}
+
+	private async resolvePendingDraft(state: WebviewUiState): Promise<boolean> {
+		const draft = state.drafts.get(state.activeTab) ?? { title: '', content: '' };
+		const existing = state.selectedItemId
+			? this.storage.getItems(state.activeTab).find(item => item.id === state.selectedItemId)
+			: undefined;
+		const dirty = existing
+			? existing.title !== (draft.title.trim() || 'Untitled') || existing.content !== draft.content
+			: Boolean(draft.title.trim() || draft.content.trim());
+		if (!dirty) {
+			return true;
+		}
+		if (vscode.workspace.getConfiguration('pasteboard').get<boolean>('autosave', true)) {
+			await this.flushWebviewDraft(state);
+			return true;
+		}
+		const choice = await vscode.window.showWarningMessage(
+			'This draft has unsaved changes.',
+			{ modal: true },
+			'Save', 'Discard'
+		);
+		if (choice === 'Save') {
+			await this.persistWebviewDraft(state, state.activeTab, state.selectedItemId, draft.title, draft.content);
+			return true;
+		}
+		return choice === 'Discard';
+	}
+
+	private async persistWebviewDraft(state: WebviewUiState, tabId: TabScope, itemId: string | null, title: string, content: string): Promise<boolean> {
+		if (!title.trim() && !content.trim()) {
+			return false;
+		}
+		const items = this.storage.getItems(tabId);
+		const existing = itemId ? items.find(item => item.id === itemId) : undefined;
+		if (existing) {
+			if (state.dirty && state.baseline && (state.baseline.updatedAt !== existing.updatedAt || state.baseline.title !== existing.title || state.baseline.content !== existing.content)) {
+				throw new Error('This note changed in another Pasteboard view. Copy your draft, reload the note, then apply your changes.');
+			}
+			const index = items.findIndex(item => item.id === existing.id);
+			items[index] = { ...existing, title: title.trim() || 'Untitled', content, updatedAt: Date.now() };
+			await this.storage.setItems(tabId, items);
+			state.selectedItemId = existing.id;
+			state.drafts.set(tabId, { title: items[index].title, content });
+			state.baseline = { title: items[index].title, content, updatedAt: items[index].updatedAt };
+		} else {
+			const item = createItem(title, content);
+			await this.storage.setItems(tabId, [...items, item]);
+			state.selectedItemId = item.id;
+			state.drafts.set(tabId, { title: item.title, content });
+			state.baseline = { title: item.title, content, updatedAt: item.updatedAt };
+		}
+		state.dirty = false;
+		for (const peer of this.webviewStates.values()) {
+			if (peer !== state && peer.activeTab === tabId && peer.selectedItemId === state.selectedItemId && !peer.dirty) {
+				peer.drafts.set(tabId, { title: state.drafts.get(tabId)?.title ?? '', content: state.drafts.get(tabId)?.content ?? '' });
+				peer.baseline = state.baseline;
+			}
+		}
+		this.broadcastState();
+		return true;
+	}
+
+	private async selectWebviewItem(webview: vscode.Webview, state: WebviewUiState, tabId: TabScope, itemId: string | null): Promise<void> {
+		if (!await this.resolvePendingDraft(state)) {
+			return;
+		}
+		if (state.activeTab !== tabId) {
+			state.drafts.set(state.activeTab, { title: '', content: '' });
+		}
+		state.activeTab = tabId;
+		state.selectedItemId = itemId;
+		const item = itemId ? this.storage.getItems(tabId).find(candidate => candidate.id === itemId) : undefined;
+		state.drafts.set(tabId, item ? { title: item.title, content: item.content } : { title: '', content: '' });
+		state.baseline = item ? { title: item.title, content: item.content, updatedAt: item.updatedAt } : undefined;
+		state.dirty = false;
+		this.broadcastState(webview);
 	}
 
 	private async persistDelete(tabId: TabScope, itemId: string): Promise<void> {
@@ -824,34 +1008,40 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		}));
 	}
 
-	private sendInit(): void {
+	private sendInit(target?: vscode.Webview): void {
 		const tabs = this.getTabsWithCounts();
-		if (this.uiState.activeTab !== 'global' && !tabs.some(t => t.id === this.uiState.activeTab)) {
-			this.uiState.activeTab = tabs[0]?.id ?? 'global';
+		const destinations = target ? [target] : [...this.webviews];
+		for (const webview of destinations) {
+			const state = this.webviewStates.get(webview);
+			if (!state) {
+				continue;
+			}
+			if (state.activeTab !== 'global' && !tabs.some(t => t.id === state.activeTab)) {
+				state.activeTab = tabs[0]?.id ?? 'global';
+			}
+			const message: HostToWebviewMessage = {
+				type: 'init', tabs, activeTab: state.activeTab,
+				items: this.storage.getItems(state.activeTab), selectedItemId: state.selectedItemId,
+				draft: state.drafts.get(state.activeTab) ?? { title: '', content: '' }, settings: this.getUiSettings()
+			};
+			this.postSafely(webview, message);
 		}
-
-		const message: HostToWebviewMessage = {
-			type: 'init',
-			tabs,
-			activeTab: this.uiState.activeTab,
-			items: this.storage.getItems(this.uiState.activeTab),
-			selectedItemId: this.uiState.selectedItemId,
-			draft: this.getDraft(this.uiState.activeTab),
-			settings: this.getUiSettings()
-		};
-		this.postToAll(message);
 	}
 
-	private broadcastState(): void {
-		const message: HostToWebviewMessage = {
-			type: 'stateUpdate',
-			tabs: this.getTabsWithCounts(),
-			activeTab: this.uiState.activeTab,
-			items: this.storage.getItems(this.uiState.activeTab),
-			selectedItemId: this.uiState.selectedItemId,
-			draft: this.getDraft(this.uiState.activeTab)
-		};
-		this.postToAll(message);
+	private broadcastState(target?: vscode.Webview): void {
+		const tabs = this.getTabsWithCounts();
+		for (const webview of target ? [target] : [...this.webviews]) {
+			const state = this.webviewStates.get(webview);
+			if (!state) {
+				continue;
+			}
+			const message: HostToWebviewMessage = {
+				type: 'stateUpdate', tabs, activeTab: state.activeTab,
+				items: this.storage.getItems(state.activeTab), selectedItemId: state.selectedItemId,
+				draft: state.drafts.get(state.activeTab) ?? { title: '', content: '' }
+			};
+			this.postSafely(webview, message);
+		}
 	}
 
 	private postCommandToWebviews(
@@ -867,7 +1057,25 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 
 	private postToAll(message: HostToWebviewMessage): void {
 		for (const webview of this.webviews) {
-			void webview.postMessage(message);
+			this.postSafely(webview, message);
+		}
+	}
+
+	private postTo(webview: vscode.Webview, message: HostToWebviewMessage): void {
+		this.postSafely(webview, message);
+	}
+
+	private postSafely(webview: vscode.Webview, message: HostToWebviewMessage): void {
+		try {
+			void webview.postMessage(message).then(sent => {
+				if (!sent) {
+					this.detachWebview(webview);
+				}
+			}, () => this.detachWebview(webview));
+		} catch {
+			// A panel may be disposed between a lifecycle event and this post. Remove it
+			// from fan-out immediately so later updates never target the dead webview.
+			this.detachWebview(webview);
 		}
 	}
 }

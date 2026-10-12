@@ -1,5 +1,14 @@
 # Change Log
 
+## Unreleased
+
+- Isolated draft and selection state between the sidebar and panel surfaces.
+- Confirmed autosave and manual-save completion only after the extension host persisted the revision; displayed save failures.
+- Prompted before discarding dirty drafts when autosave is disabled and navigating to another note or scope.
+- Preserved whitespace in note content and added arrow-key navigation for scopes and the note list.
+- Used atomic temporary-file replacement for file-backed storage and blocked writes when the backing JSON is invalid or unreadable.
+- Added clearer first-note guidance, visible focus treatment, and reduced-motion support.
+
 ## 0.5.0
 
 Initial public release.
