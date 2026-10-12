@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'   # runs when you push a tag like v1.0.0 to GitHub
 
+permissions:
+  contents: read
+  id-token: write   # required for Open VSX trusted publishing (OIDC)
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -15,12 +19,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 24   # ovsx 1.2.0 requires Node >= 22
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Publish extension
-        run: npx vsce publish
+      - name: Package extension
+        run: npx @vscode/vsce package --out extension.vsix
+
+      - name: Publish to Visual Studio Marketplace
+        run: npx @vscode/vsce publish --packagePath extension.vsix
         env:
           VSCE_PAT: ${{ secrets.VSCE_TOKEN }}
+
+      - name: Publish to Open VSX
+        run: npx ovsx@1.2.0 publish --packagePath extension.vsix --trusted-publishing
