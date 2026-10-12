@@ -78,7 +78,7 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		// drag — none of which go through toggleSidebar()/openPrimaryView(). Enforce
 		// "never show the sidebar and the Beside panel at once" here too, not just in our
 		// own command handlers, otherwise the panel + sidebar can end up open together.
-		if (this.panel) {
+		if (this.panel && !this.panel.isDisposed) {
 			this.closePanel();
 		}
 
@@ -141,7 +141,7 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 
 		const preferredWidthPercent = vscode.workspace
 			.getConfiguration('pasteboard')
-			.get<number>('preferredWidthPercent', 28);
+			.get<number>('preferredWidthPercent', 25);
 		const steps = Math.max(1, Math.min(6, Math.round((100 - preferredWidthPercent) / 10)));
 		for (let i = 0; i < steps; i += 1) {
 			await new Promise(resolve => setTimeout(resolve, 60));
@@ -194,7 +194,7 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 		// Never reveal the sidebar while a Beside panel is still open — e.g. after the
 		// user picks "Right sidebar" from Set Default Placement without having closed an
 		// already-open panel first.
-		if (this.panel) {
+		if (this.panel && !this.panel.isDisposed) {
 			this.closePanel();
 		}
 
@@ -209,12 +209,16 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	// ── WebviewPanel (toolbar / compact fallback) ────────────────────────
 
 	openPanel(): void {
-		if (this.panel) {
+		if (this.panel && !this.panel.isDisposed) {
 			this.panel.reveal();
 			void this.updatePlacement('panel-beside');
 			this.notifyOpenStateChange();
 			return;
 		}
+		// The user can close a panel directly with its tab's X. Usually the dispose
+		// event clears this reference immediately, but clear it here too in case an
+		// open command races that event.
+		this.panel = undefined;
 
 		// No longer force-closing the sidebar here before opening the panel — that used
 		// workbench.action.closeSidebar, which collapses the whole Primary Side Bar and
@@ -247,26 +251,26 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 
 		// Single place that sets html and wires the message listener — see the comment
 		// in pasteboardPanel.ts for why this must not also happen inside PasteboardPanel.
-		this.attachWebview(this.panel.webview, this.panel.webview.options);
+		this.attachWebview(panelInstance.webview, panelInstance.webview.options);
 		void this.updatePlacement('panel-beside');
 		this.notifyOpenStateChange();
 	}
 
 	closePanel(): void {
-		this.panel?.dispose();
+		const panel = this.panel;
 		this.panel = undefined;
+		panel?.dispose();
 		this.notifyOpenStateChange();
 	}
 
 	isPanelOpen(): boolean {
-		return this.panel !== undefined;
+		return this.panel !== undefined && !this.panel.isDisposed;
 	}
 
 	private closeAll(): void {
-		if (this.panel) {
-			this.panel.dispose();
-			this.panel = undefined;
-		}
+		const panel = this.panel;
+		this.panel = undefined;
+		panel?.dispose();
 		if (this.view?.visible) {
 			// Deliberately NOT calling workbench.action.closeSidebar here: it collapses
 			// the entire Primary Side Bar (Explorer/Search/whatever else is showing too,
@@ -292,9 +296,10 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	}
 
 	togglePanelPosition(): void {
-		if (this.panel) {
+		if (this.panel && !this.panel.isDisposed) {
 			this.closePanel();
 		} else {
+			this.panel = undefined;
 			this.openPanel();
 		}
 	}
@@ -579,7 +584,7 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 	<main class="editor-section">
 		<div id="editor-frame" class="editor-frame">
 			<input id="title-input" type="text" placeholder="Title" aria-label="Item title" tabindex="1" />
-			<textarea id="content-input" placeholder="Write your note…" aria-label="Item content" tabindex="2"></textarea>
+			<textarea id="content-input" placeholder="Type here to create a note. Changes save automatically after a short pause.&#10;Select a saved note below to reopen or edit it." aria-label="Item content" tabindex="2"></textarea>
 		</div>
 		<div id="autosave-indicator" class="autosave-indicator" aria-live="polite"></div>
 	</main>
@@ -614,6 +619,9 @@ export class PasteboardProvider implements vscode.WebviewViewProvider {
 			switch (msg.type) {
 				case 'ready':
 					this.sendInit(webview);
+					if (this.panel?.webview === webview) {
+						void this.panel.applyCompactWidthHeuristic(msg.viewportWidth);
+					}
 					break;
 				case 'switchTab':
 					if (!await this.resolvePendingDraft(state)) {

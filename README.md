@@ -64,7 +64,7 @@ Beyond typing directly into the editor, there are three fast ways to get things 
 - pasteboard.confirmDelete (default: true)
 - pasteboard.maxItems (default: 200)
 - pasteboard.editorBorder (default: "1px")
-- pasteboard.preferredWidthPercent (default: 28)
+- pasteboard.preferredWidthPercent (default: 25)
 - pasteboard.sidebarMode (default: "view")
 - pasteboard.openPanelOnStartup (default: false)
 - pasteboard.storageMode (default: "state", or "file" for cross-IDE persistence)
@@ -78,7 +78,7 @@ Example:
   "pasteboard.confirmDelete": true,
   "pasteboard.maxItems": 200,
   "pasteboard.editorBorder": "1px",
-  "pasteboard.preferredWidthPercent": 28,
+  "pasteboard.preferredWidthPercent": 25,
   "pasteboard.sidebarMode": "view",
   "pasteboard.storageMode": "state"
 }

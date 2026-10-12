@@ -79,8 +79,8 @@ const undoToastBtn = document.getElementById('undo-toast-btn') as HTMLButtonElem
 const ICON_STROKE = 'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
 
 const ICONS = {
-	autosaveOn: `<svg width="18" height="18" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M6.5 18.5h11a4 4 0 0 0 .6-7.95A6.5 6.5 0 0 0 5.7 9.1a4.8 4.8 0 0 0 .8 9.4Z"/><path d="m9 13 2 2 4-4"/></svg>`,
-	autosaveOff: `<svg width="18" height="18" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M6.5 18.5h11a4 4 0 0 0 .6-7.95A6.5 6.5 0 0 0 5.7 9.1a4.8 4.8 0 0 0 .8 9.4Z"/><path d="m9 13 2 2 4-4"/><path d="m4 4 16 16"/></svg>`,
+	autosaveOn: `<svg width="18" height="18" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.9-4M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.9 4M20 20v-4h-4"/></svg>`,
+	autosaveOff: `<svg width="18" height="18" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.9-4M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.9 4M20 20v-4h-4"/><path d="m4 4 16 16"/></svg>`,
 	pinOn: `<svg width="18" height="18" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M9 4h6M10 4v5l-3.5 3.5V14h11v-1.5L14 9V4M12 14v6" fill="currentColor" fill-opacity="0.18"/><path d="M9 4h6M10 4v5l-3.5 3.5V14h11v-1.5L14 9V4M12 14v6"/></svg>`,
 	pinOff: `<svg width="18" height="18" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M9 4h6M10 4v5l-3.5 3.5V14h11v-1.5L14 9V4M12 14v6"/></svg>`,
 	deleteItem: `<svg width="14" height="14" viewBox="0 0 24 24" ${ICON_STROKE} aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>`
@@ -184,7 +184,7 @@ function applySettings(s: UiSettings): void {
 	settings = s;
 	btnAutosave.classList.toggle('active', s.autosave);
 	btnAutosave.setAttribute('aria-pressed', String(s.autosave));
-	const label = s.autosave ? 'Autosave on (click to disable)' : 'Autosave off (click to enable)';
+	const label = s.autosave ? 'Autosave enabled (click to disable)' : 'Autosave disabled (click to enable)';
 	btnAutosave.setAttribute('data-tooltip', label);
 	btnAutosave.setAttribute('aria-label', label);
 	btnAutosave.innerHTML = s.autosave ? ICONS.autosaveOn : ICONS.autosaveOff;
@@ -637,5 +637,5 @@ document.addEventListener('visibilitychange', () => {
 	}
 });
 
-post({ type: 'ready' });
+post({ type: 'ready', viewportWidth: window.innerWidth });
 post({ type: 'focus' });

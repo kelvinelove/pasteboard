@@ -29,7 +29,7 @@ export interface PasteboardUiSettings {
 
 /** Messages sent from the webview to the extension host. */
 export type WebviewToHostMessage =
-	| { type: 'ready' }
+	| { type: 'ready'; viewportWidth: number }
 	| { type: 'switchTab'; tabId: TabScope }
 	| { type: 'selectItem'; tabId: TabScope; itemId: string | null }
 	| { type: 'createItem'; tabId: TabScope; title: string; content: string; revision?: number }

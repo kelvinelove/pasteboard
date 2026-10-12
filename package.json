@@ -243,7 +243,7 @@
 				},
 				"pasteboard.preferredWidthPercent": {
 					"type": "number",
-					"default": 28,
+					"default": 25,
 					"minimum": 10,
 					"maximum": 50,
 					"description": "Preferred compact width percentage for the panel fallback when the editor is split beside the main editor."
