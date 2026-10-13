@@ -1,7 +1,7 @@
 {
 	"name": "pasteboard",
 	"displayName": "Pasteboard",
-	"description": "Lightweight persistent notes with a typing-first webview, autosave, and a right-side status bar trigger.",
+	"description": "Quick notes and a persistent scratchpad for VS Code, with autosave, workspace and global notes, search, and quick capture.",
 	"publisher": "kelvinelove",
 	"author": "kelvinelove",
 	"license": "MIT",
@@ -16,12 +16,22 @@
 	"keywords": [
 		"pasteboard",
 		"notes",
+		"note taking",
 		"notepad",
-		"clipboard",
-		"workspace",
-		"global",
+		"scratchpad",
+		"quick notes",
+		"persistent notes",
+		"workspace notes",
+		"global notes",
 		"autosave",
-		"status bar"
+		"quick capture",
+		"clipboard notes",
+		"text snippets",
+		"editor notes",
+		"developer productivity",
+		"productivity",
+		"vscode notes",
+		"visual studio code"
 	],
 	"repository": {
 		"type": "git",

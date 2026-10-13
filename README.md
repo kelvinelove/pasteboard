@@ -1,10 +1,22 @@
 # Pasteboard
 
+<p align="center"><img src="media/icon.png" alt="Pasteboard icon" width="88" /></p>
+
 Pasteboard is a compact, typing-first note surface for VS Code. It opens from a right-aligned Status Bar item, keeps your current draft in focus, and saves automatically while you type.
+
+## Screenshots
+
+### Editor view
+
+![Pasteboard editor view](https://github.com/user-attachments/assets/e04d7b23-629e-42f5-8b96-c83e0c5510a7)
+
+### Sidebar view
+
+![Pasteboard sidebar view](https://github.com/user-attachments/assets/72f310f9-e31c-4ef6-912b-f2d1257e3094)
 
 ## What you’ll see
 
-- A $(clipboard) $(notebook) Pasteboard Status Bar item in the bottom-right corner — highlighted while Pasteboard is open, plain when it's closed. Click to toggle.
+- A **Pasteboard** Status Bar item in the bottom-right corner — highlighted while Pasteboard is open, plain when it's closed. Click to toggle.
 - A compact editor with a subtle, theme-aware border.
 - Search and saved-note history at the bottom of the view.
 - Inline SVG toolbar buttons for autosave, new note, pin, duplicate, save, and panel toggle.
