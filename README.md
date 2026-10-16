@@ -98,34 +98,8 @@ Example:
 
 ## Storage and migrations
 
-- Global notes are stored in global state under pasteboard.global — this is always cross-workspace, regardless of storageMode.
-- Workspace notes are stored per workspace folder in workspace state by default (pasteboard.storageMode: "state").
-- Set pasteboard.storageMode to "file" to instead persist each workspace folder's notes to a `.vscode/pasteboard.json` file in that folder. This lets the same notes show up when the folder is opened in a different editor window or a different IDE. The extension watches that file and refreshes the view if it changes on disk (e.g. edited by another window). Commit the file if you want the team to share notes, or gitignore it to keep them local.
-- File-backed writes use a temporary file and rename. If the JSON is invalid or unreadable, Pasteboard reports the problem and blocks saves until the file can be read, preventing an accidental overwrite with an empty list.
-- Legacy keys such as workspace-notepad and workspace-notepad.notes are migrated on activation.
-- Items are pruned to the configured max item count, preserving pinned items first. A notification appears whenever pruning actually removes something, so old notes never disappear silently.
+Global notes are available across workspaces. Workspace notes are stored separately for each workspace folder. By default, notes are kept in VS Code's extension storage.
 
-## Build and run
+To share workspace notes across editor windows or compatible IDEs, set `pasteboard.storageMode` to `file`. Notes are then stored in `.vscode/pasteboard.json` inside each workspace folder. Commit that file to share notes with your team, or add it to `.gitignore` to keep it local.
 
-```bash
-npm install
-npm run compile
-```
-
-Press F5 to start the Extension Development Host. Click the $(clipboard) $(notebook) Pasteboard item in the Status Bar to try it.
-
-To package an extension bundle:
-
-```bash
-npm run package
-```
-
-## Project layout
-
-- src/extension.ts — activation, Status Bar item, commands, and placement handling.
-- src/pasteboardProvider.ts — shared webview view and panel controller.
-- src/pasteboardPanel.ts — compact fallback WebviewPanel wrapper.
-- src/storage.ts — persistence, pruning, and migration helpers.
-- src/types.ts — message contracts between the webview and extension host.
-- src/webview.ts — client-side editor, autosave, and list UI.
-- assets/webview.css — layout styling and toolbar/list behavior.
+Pasteboard migrates notes from older versions automatically. When the configured item limit is reached, it removes the oldest unpinned items first and notifies you if anything is removed.
